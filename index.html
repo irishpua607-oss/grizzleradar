@@ -37,6 +37,7 @@ button.b{background:var(--g);color:#04120a;border:0;border-radius:10px;padding:1
 button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--amber)}
 .pin{border-color:var(--g);background:linear-gradient(180deg,#0e2a1c,var(--panel));padding:14px}.pin .ph{display:flex;gap:12px;align-items:center}.pin img{width:96px;height:48px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.pin h3{margin:0;font:800 17px/1.2 "Trebuchet MS",system-ui,sans-serif}.pin h3 b{color:var(--g)}.pin a{color:var(--amber);font-size:13px}.pin .grid{grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.pin .stat{padding:8px}.pin .stat b{font-size:20px}.pin .stat span{font-size:12px}@media(max-width:520px){.pin .grid{grid-template-columns:1fr 1fr}}.hide{display:none}.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:0 0 10px;border:1px solid var(--line);border-radius:14px;background:#0a1812;font-size:14px}.chip.hide{display:none}.chip span{color:var(--mute)}.chip b{color:var(--g);font-family:monospace}.chip button{margin-left:auto;background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:5px 10px;cursor:pointer}summary{cursor:pointer;color:var(--mute)}
 .gl{margin-top:12px}.gl .bar{height:12px;border-radius:8px;background:#09150f;border:1px solid var(--line);overflow:hidden}.gl .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--g2),var(--g));transition:width .6s}.gl .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-top:6px}.gl .meta b{color:var(--ink)}.tag{display:inline-block;border-radius:20px;padding:1px 10px;font-size:12px;border:1px solid var(--line);color:var(--mute)}.tag.on{color:var(--g);border-color:var(--g)}.tag.off{color:var(--amber);border-color:#6b5420}
+.th{position:relative;display:inline-grid;place-items:center;width:38px;height:38px;border-radius:10px;border:2px solid var(--g);overflow:hidden;font:800 12px inherit;color:#04120a;vertical-align:middle;margin-right:8px;flex:none}.th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 </style></head><body><div class="wrap">
 <div class="top"><div class="logo"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="7" cy="8" r="4" fill="#2dff8f"/><circle cx="23" cy="8" r="4" fill="#2dff8f"/><circle cx="15" cy="16" r="10" fill="#2dff8f"/><circle cx="11" cy="14" r="1.6" fill="#06100b"/><circle cx="19" cy="14" r="1.6" fill="#06100b"/><ellipse cx="15" cy="19" rx="3.6" ry="2.6" fill="#06100b"/></svg></div><h1>GRIZZLE <b>RADAR</b></h1><span class="live">Live</span></div>
 <div id="walBox"><input class="search" id="wal" placeholder="Paste your wallet address (0x...) one time" aria-label="Wallet address" autocomplete="off" spellcheck="false"></div><div class="chip hide" id="walChip"><span>Wallet</span><b id="walShort"></b><button id="walChange">Change</button></div>
@@ -204,25 +205,52 @@ function parseLive(j){
   let pr=N(price);if(pr!==undefined&&pr>=1e8)pr=pr/1e8; // octas -> SUPRA
   return {minted,max:maxN,price:pr,active:act===undefined?undefined:(act===true||act==='true')};
 }
+let GLok=null,GLfns='';
+async function viewCall(base,ep,f,args){
+  const r=await fetch(base+ep,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({function:f,type_arguments:[],arguments:args})});
+  const t=await r.text();let j={};try{j=JSON.parse(t)}catch(e){}
+  if(!r.ok)throw new Error(f.split('::').pop()+' '+r.status+' '+t.replace(/\s+/g,' ').slice(0,90));
+  const p=parseLive(j);if(!p)throw new Error(f.split('::').pop()+' no stats in result');
+  return p;
+}
+// read the contract's own function list so we do not have to guess names
+async function abiFns(base,addr,mod){
+  for(const ep of [`/rpc/v3/accounts/${addr}/modules/${mod}`,`/rpc/v1/accounts/${addr}/modules/${mod}`,`/rpc/v2/accounts/${addr}/modules/${mod}`]){
+    try{const j=await getJ(base+ep);const abi=j.abi||(j.result&&j.result.abi)||j;if(abi&&abi.exposed_functions)return abi.exposed_functions}catch(e){}
+  }
+  return [];
+}
+function argFor(t,i){
+  t=String(t);
+  if(/signer/.test(t))return null;
+  if(t==='address')return i===0?PIN.addr:'0x0';
+  if(/String$/.test(t))return GL_NAME;
+  if(/^vector<u8>$/.test(t))return hexName(GL_NAME);
+  return undefined; // unknown type, skip this function
+}
 async function liveGrizzle(){
   const base=$('node').value.replace(/\/$/,'');
-  const fn=$('gfn').value.trim();
-  const fns=[...new Set([fn,fn.replace(/::[^:]+$/,'::get_lootbox'),fn.replace(/::[^:]+$/,'::get_lootbox_stats')])];
-  // arguments guess: (creator address, collection name, viewer). Tries with and without the viewer.
-  const argSets=[[PIN.addr,GL_NAME,'0x0'],[PIN.addr,GL_NAME],[PIN.addr,hexName(GL_NAME)]];
   const errs=[];
-  for(const f of fns)for(const a of argSets){
-    for(const ep of ['/rpc/v3/view','/rpc/v1/view']){
-      try{
-        const r=await fetch(base+ep,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({function:f,type_arguments:[],arguments:a})});
-        const j=await r.json().catch(()=>({}));
-        if(!r.ok){errs.push(f.split('::').pop()+' '+r.status);continue}
-        const p=parseLive(j);if(p){GL=Object.assign(p,{at:Date.now(),src:f.split('::').pop()});GLerr='';return true}
-        errs.push('no stats in result');
-      }catch(e){errs.push(e.message)}
+  if(GLok){try{GL=Object.assign(await viewCall(base,GLok.ep,GLok.f,GLok.a),{at:Date.now(),src:GLok.f.split('::').pop()});GLerr='';return true}catch(e){GLok=null}}
+  const fn=$('gfn').value.trim(),[addr,mod]=fn.split('::');
+  const tries=[];
+  for(const f of [fn,fn.replace(/::[^:]+$/,'::get_lootbox')])for(const a of [[PIN.addr,GL_NAME,'0x0'],[PIN.addr,GL_NAME],[PIN.addr,hexName(GL_NAME)]])tries.push([f,a]);
+  // functions from the contract ABI
+  const fs=await abiFns(base,addr,mod);
+  if(fs.length){
+    GLfns=fs.map(f=>f.name+'('+(f.params||[]).filter(x=>!/signer/.test(x)).length+')').slice(0,25).join(', ');
+    for(const f of fs){
+      if(!/lootbox|info|stat|get|collection|supply|price|rolled/i.test(f.name))continue;
+      if((f.params||[]).some(x=>/signer/.test(x)))continue;
+      const a=(f.params||[]).map(argFor);if(a.includes(undefined))continue;
+      tries.push([`${addr}::${mod}::${f.name}`,a]);
     }
   }
-  GLerr=[...new Set(errs)].slice(0,3).join('; ');return false;
+  for(const [f,a] of tries)for(const ep of ['/rpc/v3/view','/rpc/v1/view']){
+    try{const p=await viewCall(base,ep,f,a);GL=Object.assign(p,{at:Date.now(),src:f.split('::').pop()});GLok={ep,f,a};GLerr='';return true}
+    catch(e){if(errs.length<4)errs.push(e.message)}
+  }
+  GLerr=[...new Set(errs)].slice(0,3).join(' | ')+(GLfns?' | contract functions: '+GLfns:' | could not read contract ABI');return false;
 }
 function liveHtml(){
   if(!GL)return `<div class="gl"><span class="tag off">Live: not connected</span><div class="msg err">${esc(GLerr||'Loading...')} — the radar still counts mints from chain events below.</div></div>`;
@@ -232,6 +260,15 @@ function liveHtml(){
   <div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div><div class="meta"><span><b>${pct}%</b> minted</span><span><b>${Math.max(0,GL.max-m)}</b> left</span><span>${new Date(GL.at).toLocaleTimeString()}</span></div></div>`;
 }
 
+
+function thumb(e,k){
+  const d=(e&&e.data)||{};k=String(k);
+  const creator=pick(d,['creator']),name=pick(d,['collection_name','collection']);
+  let u='';
+  if(nA(k)===nA(PIN.addr)||/grizzle junkyard/i.test(k+' '+name))u=PIN.img;
+  else if(/^0x[0-9a-f]{20,}$/i.test(creator||'')&&name&&!/^0x[0-9a-f]{20,}$/i.test(name))u=`https://cdn2.crystara.trade/collections/${creator}-${encodeURIComponent(name)}/banner.jpg`;
+  return `<span class="th" style="background:hsl(${hue(k)},70%,60%)">${esc(k.replace(/^0x/,'').slice(0,2).toUpperCase())}${u?`<img src="${esc(u)}" loading="lazy" referrerpolicy="no-referrer" alt="" onerror="this.remove()">`:''}</span>`;
+}
 function hue(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return h}
 function render(fresh){
   const q=$('q').value.trim().toLowerCase(),all=[...events.values()],now=Date.now();
@@ -245,12 +282,12 @@ function render(fresh){
   $('radar').innerHTML='<div class="sweep"></div>'+top.map((g,i)=>{const a=(i*137.5)*Math.PI/180,r=14+(1-g.n/mx)*28;
     return `<div class="dot" title="${esc(g.k)} (${g.n} events)" style="left:${50+r*Math.cos(a)}%;top:${50+r*Math.sin(a)}%;background:hsl(${hue(g.k)},70%,60%)">${esc(g.k.replace(/^0x/,'').slice(0,2).toUpperCase())}</div>`}).join('');
   const t=(h,r)=>r.length?`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.join('')}</table>`:'<div class="msg">Nothing here yet. The radar fills up as it scans.</div>';
-  $('v-col').innerHTML=t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${sh(g.k)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`));
+  $('v-col').innerHTML=t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${thumb(g.ev,g.k)}${sh(g.k)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`));
   const W=[['1h',36e5],['24h',864e5],['7d',6048e5]];
-  const rows=gs.map(g=>{const r={k:g.k,all:g.n};for(const[n,ms]of W)r[n]=all.filter(e=>(e.col||e.tok||'(unknown)')===g.k&&e.ts>now-ms).length;return r})
+  const rows=gs.map(g=>{const r={k:g.k,all:g.n,ev:g.ev};for(const[n,ms]of W)r[n]=all.filter(e=>(e.col||e.tok||'(unknown)')===g.k&&e.ts>now-ms).length;return r})
     .sort((a,b)=>hasTs?(b['24h']-a['24h']||b['1h']-a['1h']||b.all-a.all):b.all-a.all);
-  $('v-trend').innerHTML=(hasTs?'':'<div class="msg">No timestamps in events, ranking by total count.</div>')+t(['Collection / token','1h','24h','7d','Total'],rows.slice(0,30).map(r=>`<tr><td>${sh(r.k)}</td><td>${r['1h']}</td><td>${r['24h']}</td><td>${r['7d']}</td><td>${r.all}</td></tr>`));
-  const ev=(l)=>l.sort((a,b)=>b.ts-a.ts).slice(0,100).map(e=>`<tr><td>${e.ts?new Date(e.ts).toLocaleString():'#'+esc(e.height)}</td><td>${esc(e.type)}</td><td>${sh(e.col||e.tok||'-')}${raw(e)}</td><td>${sh(e.who||'-')}</td></tr>`);
+  $('v-trend').innerHTML=(hasTs?'':'<div class="msg">No timestamps in events, ranking by total count.</div>')+t(['Collection / token','1h','24h','7d','Total'],rows.slice(0,30).map(r=>`<tr><td>${thumb(r.ev,r.k)}${sh(r.k)}</td><td>${r['1h']}</td><td>${r['24h']}</td><td>${r['7d']}</td><td>${r.all}</td></tr>`));
+  const ev=(l)=>l.sort((a,b)=>b.ts-a.ts).slice(0,100).map(e=>`<tr><td>${e.ts?new Date(e.ts).toLocaleString():'#'+esc(e.height)}</td><td>${esc(e.type)}</td><td>${thumb(e,e.col||e.tok||'-')}${sh(e.col||e.tok||'-')}${raw(e)}</td><td>${sh(e.who||'-')}</td></tr>`);
   const qf=e=>!q||JSON.stringify(e.data).toLowerCase().includes(q)||e.type.toLowerCase().includes(q);
   $('v-new').innerHTML=t(['When','Type','Collection / token','Wallet'],ev(mints.filter(qf)));
   // pinned Grizzle collection, always on top
