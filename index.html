@@ -38,22 +38,33 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
 .pin{border-color:var(--g);background:linear-gradient(180deg,#0e2a1c,var(--panel));padding:14px}.pin .ph{display:flex;gap:12px;align-items:center}.pin img{width:96px;height:48px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.pin h3{margin:0;font:800 17px/1.2 "Trebuchet MS",system-ui,sans-serif}.pin h3 b{color:var(--g)}.pin a{color:var(--amber);font-size:13px}.pin .grid{grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.pin .stat{padding:8px}.pin .stat b{font-size:20px}.pin .stat span{font-size:12px}@media(max-width:520px){.pin .grid{grid-template-columns:1fr 1fr}}.hide{display:none}.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:0 0 10px;border:1px solid var(--line);border-radius:14px;background:#0a1812;font-size:14px}.chip.hide{display:none}.chip span{color:var(--mute)}.chip b{color:var(--g);font-family:monospace}.chip button{margin-left:auto;background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:5px 10px;cursor:pointer}summary{cursor:pointer;color:var(--mute)}
 .gl{margin-top:12px}.gl .bar{height:12px;border-radius:8px;background:#09150f;border:1px solid var(--line);overflow:hidden}.gl .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--g2),var(--g));transition:width .6s}.gl .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-top:6px}.gl .meta b{color:var(--ink)}.tag{display:inline-block;border-radius:20px;padding:1px 10px;font-size:12px;border:1px solid var(--line);color:var(--mute)}.tag.on{color:var(--g);border-color:var(--g)}.tag.off{color:var(--amber);border-color:#6b5420}
 .th{position:relative;display:inline-grid;place-items:center;width:38px;height:38px;border-radius:10px;border:2px solid var(--g);overflow:hidden;font:800 12px inherit;color:#04120a;vertical-align:middle;margin-right:8px;flex:none}.th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-</style></head><body><div class="wrap">
+.big{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.big div{background:#07130d;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.big span{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9bb7a8}.big b{display:block;font-size:40px;line-height:1.1;margin-top:4px}.big .m b{color:var(--g)}.big .l b{color:#ffd24a}.pbar{height:14px;border-radius:8px;background:#09150f;border:1px solid var(--line);overflow:hidden;margin-top:10px}.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--g2),var(--g));transition:width .6s}.pnote{font-size:12px;color:#9bb7a8;margin-top:6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+</style></head><body><script>
+// Route Supra RPC calls through our own /api/supra proxy (browser CORS blocks direct calls -> "Failed to fetch").
+// Falls back to a direct call if the proxy is not deployed.
+(function(){const _f=window.fetch.bind(window);
+window.fetch=async function(u,o){
+  if(typeof u==='string'&&/^https?:\/\//i.test(u)&&u.indexOf(location.origin)!==0&&/^https?:/.test(location.protocol)){
+    try{const r=await _f('/api/supra?u='+encodeURIComponent(u),o);if(r.headers.get('x-proxied'))return r}catch(e){}
+  }
+  return _f(u,o)}})();
+</script>
+<div class="wrap">
 <div class="top"><div class="logo"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="7" cy="8" r="4" fill="#2dff8f"/><circle cx="23" cy="8" r="4" fill="#2dff8f"/><circle cx="15" cy="16" r="10" fill="#2dff8f"/><circle cx="11" cy="14" r="1.6" fill="#06100b"/><circle cx="19" cy="14" r="1.6" fill="#06100b"/><ellipse cx="15" cy="19" rx="3.6" ry="2.6" fill="#06100b"/></svg></div><h1>GRIZZLE <b>RADAR</b></h1><span class="live">Live</span></div>
-<div id="walBox"><input class="search" id="wal" placeholder="Paste your wallet address (0x...) one time" aria-label="Wallet address" autocomplete="off" spellcheck="false"></div><div class="chip hide" id="walChip"><span>Wallet</span><b id="walShort"></b><button id="walChange">Change</button></div>
-<input class="search hide" id="q" placeholder="Search collection, contract, or NFT..." aria-label="Search">
 <div class="card pin" id="pin"></div>
-<div class="tabs" role="tablist"><button class="on" data-t="radar">Radar</button><button data-t="wal">My Wallet</button><button data-t="trend">Trending</button><button data-t="new">New Mints</button><button data-t="col">Collections</button></div>
+<input class="search hide" id="q" placeholder="Search collection, contract, or NFT..." aria-label="Search">
+<div class="tabs" role="tablist"><button class="on" data-t="radar">Radar</button><button data-t="trend">Trending</button><button data-t="new">New Mints</button><button data-t="col">Collections</button></div>
 <div id="v-radar"><div class="card hero"><h2>GRIZZLE <b>RADAR</b></h2><p>Scan the Supra NFT universe. Find trending collections, new mints, and hidden gems before they blow up.</p>
 <div class="grid"><div class="stat"><span>Active NFT collections</span><b id="sCol">0</b></div><div class="stat"><span>New mints (scanned)</span><b id="sMint">0</b></div><div class="stat"><span>Unique wallets</span><b id="sWal">0</b></div><div class="stat"><span>Events (24h)</span><b id="s24">0</b></div></div></div>
 <div class="card"><div class="radar" id="radar"><div class="sweep"></div></div></div></div>
-<div class="card hide" id="v-wal"></div><div class="card hide" id="v-trend"></div><div class="card hide" id="v-new"></div><div class="card hide" id="v-col"></div>
+<div class="card hide" id="v-trend"></div><div class="card hide" id="v-new"></div><div class="card hide" id="v-col"></div>
 <details class="card set hide"><summary>Settings</summary>
 <label for="node">Supra node</label><input id="node" value="https://rpc-mainnet.supra.com">
-<label for="depth">Blocks to scan per run (more = finds more NFTs, but slower)</label><input id="depth" value="600">
+<label for="depth">Blocks to scan per run (more = finds more NFTs, but slower)</label><input id="depth" value="200">
 <label for="types">Event types (auto-filled by the radar, add more if you like)</label><textarea id="types"></textarea>
-<label for="pool">Pool filter: only events containing this text (for example the Crystara contract address)</label><input id="pool" placeholder="0x...">
 <label for="gfn">Grizzle live view function (Crystara contract call, leave as is unless the radar says it cannot read it)</label><input id="gfn" value="0xfd566b048d7ea241ebd4d28a3d60a9eaaaa29a718dfff52f2ff4ca8581363b85::crystara_blindbox_v1::get_lootbox_info">
+<label for="pool">Pool filter: only events containing this text (for example the Crystara contract address)</label><input id="pool" placeholder="0x...">
+
 <label for="from">From block height (only if auto find cannot read the latest block)</label><input id="from" placeholder="optional">
 <div class="row"><button class="b" id="go">Scan now</button><button class="b o" id="deep">Deep scan (5x blocks)</button><button class="b o" id="auto">Auto refresh: off</button></div></details>
 <div id="status" class="msg">Starting auto scan...</div><div id="log" class="msg"></div>
@@ -167,7 +178,7 @@ async function discover(deep){
   const hs=[];for(let h=start;h<=top;h++)hs.push(h);
   let found=0,got=0,done=0;const types=new Set();
   try{await getBlock(base,top)}catch(e){} // detect which block endpoint works before going parallel
-  await pmap(hs,10,async h=>{
+  await pmap(hs,20,async h=>{
     let j=null;
     for(let t=0;t<2&&!j;t++){try{j=await getBlock(base,h)}catch(e){}}
     done++;if(done%25===0)log(`Auto find: reading blocks ${done}/${hs.length}...`);
@@ -194,10 +205,11 @@ const hexName=s=>'0x'+[...new TextEncoder().encode(s)].map(b=>b.toString(16).pad
 function findKey(o,re){let r;(function f(x){if(r!==undefined||!x||typeof x!=='object')return;for(const k in x){if(re.test(k)&&x[k]!==null&&typeof x[k]!=='object'){r=x[k];return}}for(const k in x)f(x[k])})(o);return r}
 function parseLive(j){
   const root=Array.isArray(j.result)?j.result:(j.result||j);
-  let o=root;
+  const unj=x=>{if(typeof x==='string'){try{const p=JSON.parse(x);if(p&&typeof p==='object')return unj(p)}catch(e){}return x}if(Array.isArray(x))return x.map(unj);if(x&&typeof x==='object'){const r={};for(const k in x)r[k]=unj(x[k]);return r}return x};
+  let o=unj(root);
   // view results may come as an array of values or a JSON string
   const flat=[];(function f(x){if(typeof x==='string'){try{const p=JSON.parse(x);if(p&&typeof p==='object')return f(p)}catch(e){}flat.push(x)}else if(x&&typeof x==='object')Object.values(x).forEach(f);else flat.push(x)})(root);
-  const price=findKey(o,/^price$/i),max=findKey(o,/^max_?supply$/i),rolled=findKey(o,/^(rolled|minted|total_?minted)$/i),stock=findKey(o,/^stock$/i),act=findKey(o,/^is_?active$/i);
+  const price=findKey(o,/^(price|mint_?price|cost)$/i),max=findKey(o,/^(max_?supply|total_?supply|supply|max|total)$/i),rolled=findKey(o,/^(rolled|minted|total_?minted|sold|total_?sold|current_?supply|minted_?count|count)$/i),stock=findKey(o,/^(stock|remaining|available|left|remaining_?supply)$/i),act=findKey(o,/^is_?active$/i);
   if(max===undefined&&rolled===undefined&&price===undefined)return null;
   const N=v=>v===undefined?undefined:Number(v);
   const maxN=N(max)||PIN.supply;
@@ -253,14 +265,9 @@ async function liveGrizzle(){
   GLerr=[...new Set(errs)].slice(0,3).join(' | ')+(GLfns?' | contract functions: '+GLfns:' | could not read contract ABI');return false;
 }
 function liveHtml(){
-  if(!GL)return `<div class="gl"><span class="tag off">Live: not connected</span><div class="msg err">${esc(GLerr||'Loading...')} — the radar still counts mints from chain events below.</div></div>`;
-  const m=GL.minted===undefined?0:GL.minted,pct=Math.min(100,Math.round(m/GL.max*1000)/10);
-  return `<div class="gl"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag on">Live</span>${GL.active===undefined?'':`<span class="tag ${GL.active?'on':'off'}">${GL.active?'Mint open':'Mint closed'}</span>`}${m>=GL.max?'<span class="tag off">SOLD OUT</span>':''}</div>
-  <div class="grid"><div class="stat"><span>Minted</span><b>${m} / ${GL.max}</b></div><div class="stat"><span>Mint price</span><b style="font-size:22px">${GL.price===undefined?'-':GL.price.toLocaleString(undefined,{maximumFractionDigits:2})+' SUPRA'}</b></div></div>
-  <div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div><div class="meta"><span><b>${pct}%</b> minted</span><span><b>${Math.max(0,GL.max-m)}</b> left</span><span>${new Date(GL.at).toLocaleTimeString()}</span></div></div>`;
+  if(!GL)return `<div class="gl"><span class="tag off">Auto-detect: connecting…</span><div class="msg err">${esc(GLerr||'Loading...')}</div></div>`;
+  return `<div class="gl"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag on">Live</span>${GL.active===undefined?'':`<span class="tag ${GL.active?'on':'off'}">${GL.active?'Mint open':'Mint closed'}</span>`}${(GL.minted!==undefined&&GL.minted>=GL.max)?'<span class="tag off">SOLD OUT</span>':''}${GL.price===undefined?'':`<span class="tag on">Price: ${GL.price.toLocaleString(undefined,{maximumFractionDigits:2})} SUPRA</span>`}</div></div>`;
 }
-
-
 function thumb(e,k){
   const d=(e&&e.data)||{};k=String(k);
   const creator=pick(d,['creator']),name=pick(d,['collection_name','collection']);
@@ -291,42 +298,19 @@ function render(fresh){
   const qf=e=>!q||JSON.stringify(e.data).toLowerCase().includes(q)||e.type.toLowerCase().includes(q);
   $('v-new').innerHTML=t(['When','Type','Collection / token','Wallet'],ev(mints.filter(qf)));
   // pinned Grizzle collection, always on top
-  const pn=PIN.name.toLowerCase(),pa=nA(PIN.addr);
-  const pe=all.filter(e=>addrs(e).has(pa)||JSON.stringify(e.data).toLowerCase().includes(pn));
-  const pm=pe.filter(e=>/mint/i.test(e.type)),pl=Math.max(0,...pe.map(e=>e.ts));
-  $('pin').innerHTML=`<div class="ph"><img src="${PIN.img}" alt="" onerror="this.style.display='none'"><div><h3>${esc(PIN.name)} <b>• ${PIN.supply} supply</b></h3><a href="${PIN.url}" target="_blank" rel="noopener">View on Crystara</a></div></div>
-  ${liveHtml()}<div class="grid"><div class="stat"><span>Events (scanned)</span><b>${pe.length}</b></div><div class="stat"><span>Mints</span><b>${pm.length}</b></div><div class="stat"><span>Wallets</span><b>${new Set(pe.map(e=>e.who).filter(Boolean)).size}</b></div><div class="stat"><span>Last activity</span><b style="font-size:14px">${pl?new Date(pl).toLocaleString():'-'}</b></div></div>`;
-  // wallet tab
-  const wv=$('wal').value.trim();
-  if(!wv){$('v-wal').innerHTML='<div class="msg">Paste a wallet address in the box at the top to see every NFT event it appears in.</div>'}
-  else{
-    const WA=nA(wv),mine=all.filter(e=>addrs(e).has(WA)&&qf(e));
-    const cols=new Set(mine.map(e=>e.col||e.tok).filter(Boolean));
-    $('v-wal').innerHTML=`<div class="msg">Wallet: ${esc(wv)}</div><div class="grid"><div class="stat"><span>Events for this wallet</span><b>${mine.length}</b></div><div class="stat"><span>Collections / tokens</span><b>${cols.size}</b></div></div>`
-      +(mine.length?`<div style="margin-top:14px">${t(['When','Type','Collection / token','Wallet'],ev(mine))}</div>`
-        :'<div class="msg">Nothing for this wallet in the scanned blocks yet. Press "Deep scan (5x blocks)" in Settings to look further back.</div>');
-  }
+  const pMax=(GL&&GL.max)||PIN.supply,mnt=(GL&&GL.minted!==undefined)?GL.minted:null;
+  let big='';
+  if(mnt!==null){const lft=Math.max(0,pMax-mnt),pc=Math.min(100,Math.round(mnt/pMax*1000)/10);
+    big=`<div class="big"><div class="m"><span>Minted</span><b>${mnt}</b></div><div class="l"><span>Left</span><b>${lft}</b></div></div><div class="pbar"><i style="width:${pc}%"></i></div><div class="pnote"><span><b>${pc}%</b> of ${pMax}</span><span>auto from contract · ${new Date(GL.at).toLocaleTimeString()}</span></div>`}
+  $('pin').innerHTML=`<div class="ph"><img src="${PIN.img}" alt="" onerror="this.style.display='none'"><div><h3>${esc(PIN.name)} <b>• ${PIN.supply} supply</b></h3><a href="${PIN.url}" target="_blank" rel="noopener">View on Crystara</a></div></div>${big}${liveHtml()}`;
 }
 function showTab(id){
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x.dataset.t===id));
-  for(const i of['radar','wal','trend','new','col'])$('v-'+i).classList.toggle('hide',id!==i);
+  for(const i of['radar','trend','new','col'])$('v-'+i).classList.toggle('hide',id!==i);
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
 $('go').onclick=()=>auto(false);$('deep').onclick=()=>auto(true);
 $('q').oninput=()=>render(0);
-function setWallet(v,save){
-  v=v.trim();
-  if(!/^0x[0-9a-f]{20,}$/i.test(v))return false;
-  if(save)try{localStorage.setItem('grizzleWallet',v)}catch(e){}
-  $('wal').value=v;$('walShort').textContent=v.slice(0,8)+'…'+v.slice(-4);$('walShort').title=v;
-  $('walBox').classList.add('hide');$('walChip').classList.remove('hide');render(0);return true;
-}
-$('wal').oninput=()=>setWallet($('wal').value,true);
-$('walChange').onclick=()=>{
-  try{localStorage.removeItem('grizzleWallet')}catch(e){}
-  $('wal').value='';$('walChip').classList.add('hide');$('walBox').classList.remove('hide');$('wal').focus();render(0);
-};
-try{const w=localStorage.getItem('grizzleWallet');if(w)setWallet(w,false)}catch(e){}
 $('auto').onclick=()=>{
   if(timer){clearInterval(timer);timer=null;$('auto').textContent='Auto refresh: off'}
   else{timer=setInterval(()=>auto(false),30000);$('auto').textContent='Auto refresh: 30s';auto(false)}
