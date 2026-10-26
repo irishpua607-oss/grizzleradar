@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grizzle Supra Radar</title>
+<style>
+:root{--bg:#06100b;--panel:#0c1a13;--line:#17321f;--ink:#e8f3ec;--mute:#8aa595;--g:#2dff8f;--g2:#16b866;--amber:#f2b441}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 50% -100px,#0f3a22 0,var(--bg) 70%) no-repeat,var(--bg);color:var(--ink);font:15px/1.5 "Trebuchet MS",system-ui,sans-serif;min-height:100vh}
+.wrap{max-width:760px;margin:auto;padding:0 16px 60px}
+.top{display:flex;align-items:center;gap:12px;padding:22px 0 14px}
+.logo{width:48px;height:48px;border-radius:50%;border:2px solid var(--g);background:#0c2a1b;display:grid;place-items:center}
+.top h1{margin:0;font:800 26px/1 "Trebuchet MS",system-ui,sans-serif;letter-spacing:.5px}.top h1 b{color:var(--g)}
+.live{margin-left:auto;border:1px solid #6b5420;color:var(--amber);background:#2a2008;border-radius:20px;padding:2px 12px;font-size:13px}
+.live:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-right:6px}
+.search{width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#0a1812;color:var(--ink);font-size:15px;margin-bottom:10px}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:14px 0}
+.tabs button{white-space:nowrap;background:none;border:1px solid transparent;color:var(--mute);border-radius:12px;padding:9px 14px;font:600 15px inherit;cursor:pointer}
+.tabs button.on{background:#0e2a1c;color:var(--g);border-color:var(--line)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin:0 0 14px}
+.hero h2{margin:0 0 8px;font:800 38px/1.05 "Trebuchet MS",system-ui,sans-serif}.hero h2 b{color:var(--g)}
+.hero p{color:var(--mute);margin:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.stat{border:1px solid var(--line);border-radius:14px;padding:14px;background:#09150f}
+.stat span{color:var(--mute);font-size:14px;display:block}.stat b{font-size:28px}
+.radar{position:relative;width:100%;aspect-ratio:1;max-width:520px;margin:6px auto 0;border:3px solid var(--g);border-radius:50%;background:repeating-radial-gradient(circle at center,transparent 0 17%,#13402a 17.3% 17.8%),radial-gradient(circle,#0e2a1b,#071009);overflow:hidden}
+.radar:before,.radar:after{content:"";position:absolute;background:#13402a}.radar:before{left:50%;top:0;bottom:0;width:1px}.radar:after{top:50%;left:0;right:0;height:1px}
+.sweep{position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(45,255,143,.28),transparent 25%);animation:sw 5s linear infinite}
+@keyframes sw{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.sweep{animation:none}}
+.dot{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:12px;border:2px solid var(--g);display:grid;place-items:center;font-weight:800;font-size:14px;color:#04120a;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);word-break:break-all}th{color:var(--mute)}
+.msg{color:var(--mute);font-size:13px;padding:6px 0}.err{color:#ff8a70}
+details pre{white-space:pre-wrap;font-size:12px;color:var(--mute);margin:4px 0}
+.set label{display:block;font-size:13px;color:var(--mute);margin:10px 0 3px}
+.set input,.set textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:#09150f;color:var(--ink);font:13px monospace}
+.set textarea{height:70px}.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+button.b{background:var(--g);color:#04120a;border:0;border-radius:10px;padding:10px 16px;font:700 14px inherit;cursor:pointer}button.b.o{background:none;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--amber)}
+.pin{border-color:var(--g);background:linear-gradient(180deg,#0e2a1c,var(--panel));padding:14px}.pin .ph{display:flex;gap:12px;align-items:center}.pin img{width:96px;height:48px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.pin h3{margin:0;font:800 17px/1.2 "Trebuchet MS",system-ui,sans-serif}.pin h3 b{color:var(--g)}.pin a{color:var(--amber);font-size:13px}.pin .grid{grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.pin .stat{padding:8px}.pin .stat b{font-size:20px}.pin .stat span{font-size:12px}@media(max-width:520px){.pin .grid{grid-template-columns:1fr 1fr}}.hide{display:none}.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:0 0 10px;border:1px solid var(--line);border-radius:14px;background:#0a1812;font-size:14px}.chip.hide{display:none}.chip span{color:var(--mute)}.chip b{color:var(--g);font-family:monospace}.chip button{margin-left:auto;background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:5px 10px;cursor:pointer}summary{cursor:pointer;color:var(--mute)}
+</style></head><body><div class="wrap">
+<div class="top"><div class="logo"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="7" cy="8" r="4" fill="#2dff8f"/><circle cx="23" cy="8" r="4" fill="#2dff8f"/><circle cx="15" cy="16" r="10" fill="#2dff8f"/><circle cx="11" cy="14" r="1.6" fill="#06100b"/><circle cx="19" cy="14" r="1.6" fill="#06100b"/><ellipse cx="15" cy="19" rx="3.6" ry="2.6" fill="#06100b"/></svg></div><h1>GRIZZLE <b>RADAR</b></h1><span class="live">Live</span></div>
+<div id="walBox"><input class="search" id="wal" placeholder="Paste your wallet address (0x...) one time" aria-label="Wallet address" autocomplete="off" spellcheck="false"></div><div class="chip hide" id="walChip"><span>Wallet</span><b id="walShort"></b><button id="walChange">Change</button></div>
+<input class="search hide" id="q" placeholder="Search collection, contract, or NFT..." aria-label="Search">
+<div class="card pin" id="pin"></div>
+<div class="tabs" role="tablist"><button class="on" data-t="radar">Radar</button><button data-t="wal">My Wallet</button><button data-t="trend">Trending</button><button data-t="new">New Mints</button><button data-t="col">Collections</button></div>
+<div id="v-radar"><div class="card hero"><h2>GRIZZLE <b>RADAR</b></h2><p>Scan the Supra NFT universe. Find trending collections, new mints, and hidden gems before they blow up.</p>
+<div class="grid"><div class="stat"><span>Active NFT collections</span><b id="sCol">0</b></div><div class="stat"><span>New mints (scanned)</span><b id="sMint">0</b></div><div class="stat"><span>Unique wallets</span><b id="sWal">0</b></div><div class="stat"><span>Events (24h)</span><b id="s24">0</b></div></div></div>
+<div class="card"><div class="radar" id="radar"><div class="sweep"></div></div></div></div>
+<div class="card hide" id="v-wal"></div><div class="card hide" id="v-trend"></div><div class="card hide" id="v-new"></div><div class="card hide" id="v-col"></div>
+<details class="card set hide"><summary>Settings</summary>
+<label for="node">Supra node</label><input id="node" value="https://rpc-mainnet.supra.com">
+<label for="depth">Blocks to scan per run (more = finds more NFTs, but slower)</label><input id="depth" value="600">
+<label for="types">Event types (auto-filled by the radar, add more if you like)</label><textarea id="types"></textarea>
+<label for="pool">Pool filter: only events containing this text (for example the Crystara contract address)</label><input id="pool" placeholder="0x...">
+<label for="from">From block height (only if auto find cannot read the latest block)</label><input id="from" placeholder="optional">
+<div class="row"><button class="b" id="go">Scan now</button><button class="b o" id="deep">Deep scan (5x blocks)</button><button class="b o" id="auto">Auto refresh: off</button></div></details>
+<div id="status" class="msg">Starting auto scan...</div><div id="log" class="msg"></div>
+</div><script>
+
+const $=id=>document.getElementById(id);
+const PIN={name:'GRIZZLE JUNKYARD DEFENDERS',addr:'0x9d84e90877801d4680ea1f771314244ef585d0ab17bbb74dc18bdda804e02d26',supply:222,url:'https://crystara.trade/marketplace/grizzlejunkyarddefenders',img:'https://cdn2.crystara.trade/collections/0x9d84e90877801d4680ea1f771314244ef585d0ab17bbb74dc18bdda804e02d26-GRIZZLE%20JUNKYARD%20DEFENDERS/banner.jpg'};
+const events=new Map(); // key -> event
+let timer=null,busy=false;
+
+const sh=s=>/^0x[0-9a-fA-F]{12,}$/.test(String(s))?`<span title="${esc(s)}">${esc(String(s).slice(0,8))}…${esc(String(s).slice(-4))}</span>`:esc(s);
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function pick(o,names){
+  if(!o||typeof o!=='object')return '';
+  for(const k of Object.keys(o)){
+    if(names.some(n=>k.toLowerCase().includes(n))){const v=o[k];if(typeof v==='string')return v;if(v&&typeof v==='object'){const i=v.inner||v.address||v.name;if(typeof i==='string')return i}}
+  }
+  for(const k of Object.keys(o)){if(o[k]&&typeof o[k]==='object'&&!Array.isArray(o[k])){const r=pick(o[k],names);if(r)return r}}
+  return '';
+}
+function norm(raw,type){
+  const ev=raw.event||raw; const d=ev.data||ev;
+  const ts=raw.timestamp||raw.block_timestamp||ev.timestamp||'';
+  return {type:ev.type||type,data:d,height:raw.block_height||raw.height||'',tx:raw.transaction_hash||raw.tx_hash||raw.hash||'',
+    ts:ts?(ts>1e14?ts/1000:ts>1e11?ts:ts*1000):0,
+    col:pick(d,['collection']),tok:pick(d,['token','nft']),who:pick(d,['creator','owner','to','minter','buyer'])};
+}
+// one key per event, so the same event found by the block reader and the type scan is counted once
+function addEv(e){
+  const k=e.type+'|'+JSON.stringify(e.data);
+  const o=events.get(k);
+  if(!o){events.set(k,e);return 1}
+  if(!o.ts&&e.ts)o.ts=e.ts;if(!o.tx&&e.tx)o.tx=e.tx;if(!o.height&&e.height)o.height=e.height;
+  return 0;
+}
+async function fetchType(base,type,q,max=500){
+  const out=[];let cursor='';
+  while(out.length<max){
+    const u=`${base}/rpc/v3/events/${encodeURIComponent(type)}?limit=100${q}${cursor?'&start='+encodeURIComponent(cursor):''}`;
+    const r=await fetch(u,{headers:{Accept:'application/json'}});
+    if(!r.ok)throw new Error(`${type}: HTTP ${r.status}`);
+    const j=await r.json();const arr=Array.isArray(j)?j:(j.data||j.events||[]);
+    out.push(...arr.map(x=>norm(x,type)));
+    cursor=r.headers.get('X_SUPRA_CURSOR')||r.headers.get('x-supra-cursor')||'';
+    if(!cursor||!arr.length)break;
+  }
+  return out;
+}
+async function scan(){
+  const base=$('node').value.replace(/\/$/,'');
+  const types=$('types').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const from=$('from').value.trim();const q=from?`&start_height=${encodeURIComponent(from)}`:'';
+  $('status').className='msg';$('status').textContent='Scanning event types...';
+  let fresh=0;const errs=[];
+  await pmap(types,4,async t=>{
+    try{for(const e of await fetchType(base,t,q))fresh+=addEv(e)}catch(x){errs.push(x.message)}
+  });
+  render(fresh);
+  if(errs.length){$('status').className='msg err';$('status').textContent='Some types failed: '+errs.slice(0,3).join('; ')+(errs.length>3?' ...':'')+'. Check the type names, or the browser may be blocking the request (CORS).'}
+  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'.';
+}
+function groups(){
+  const g=new Map();
+  for(const e of events.values()){const k=e.col||e.tok||'(unknown)';
+    if(!g.has(k))g.set(k,{k,n:0,last:0,who:new Set(),ev:e});
+    const o=g.get(k);o.n++;o.last=Math.max(o.last,e.ts);if(e.who)o.who.add(e.who)}
+  return [...g.values()];
+}
+function raw(e){return `<details><summary>raw</summary><pre>${esc(JSON.stringify(e.data,null,1))}</pre></details>`}
+
+// run fn over items with a limited number of requests at the same time
+async function pmap(items,n,fn){
+  const res=[];let i=0;
+  await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const k=i++;res[k]=await fn(items[k],k)}}));
+  return res;
+}
+// wallet helpers: compare addresses ignoring case and leading zeros
+const nA=s=>{s=String(s||'').trim().toLowerCase();return /^0x[0-9a-f]+$/.test(s)?'0x'+(s.slice(2).replace(/^0+/,'')||'0'):s};
+function addrs(e){
+  if(e._a)return e._a;const s=new Set();
+  (function f(x){if(typeof x==='string'){if(/^0x[0-9a-f]+$/i.test(x))s.add(nA(x))}else if(x&&typeof x==='object')for(const k in x)f(x[k])})(e.data);
+  return e._a=s;
+}
+
+let lastH=0,blockIdx=-1;
+const NFT_RE=/collection|nft|::token::|mint/i,SKIP_RE=/coin|fungible|gas|fee|stake|reward/i;
+function log(m){$('log').textContent=m}
+async function getJ(u){const r=await fetch(u,{headers:{Accept:'application/json'}});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+function walk(o,cb){if(Array.isArray(o))o.forEach(x=>walk(x,cb));else if(o&&typeof o==='object'){if(typeof o.type==='string'&&o.type.includes('::')&&o.data&&typeof o.data==='object')cb(o);for(const k in o)walk(o[k],cb)}}
+function findH(o){let h=0;(function f(x){if(h||!x||typeof x!=='object')return;for(const k in x){if(/^(block_)?height$/i.test(k)&&Number(x[k])>0){h=Number(x[k]);return}}for(const k in x)f(x[k])})(o);return h}
+function findTs(o){let t=0;(function f(x){if(t||!x||typeof x!=='object')return;for(const k in x){if(/^(block_)?timestamp$/i.test(k)&&Number(x[k])>0){t=Number(x[k]);return}}for(const k in x)f(x[k])})(o);return t}
+async function latest(base){
+  for(const u of ['/rpc/v3/block/latest','/rpc/v1/consensus/latest_block','/rpc/v1/block','/rpc/v1/consensus/block'])
+    try{const h=findH(await getJ(base+u));if(h)return h}catch(e){}
+  return 0}
+async function getBlock(base,h){
+  const T=[h=>`${base}/rpc/v3/block/${h}`,h=>`${base}/rpc/v1/consensus/block/height/${h}?with_batches=true`];
+  if(blockIdx>=0)return getJ(T[blockIdx](h));
+  for(let i=0;i<T.length;i++){try{const j=await getJ(T[i](h));blockIdx=i;return j}catch(e){}}
+  throw new Error('no block endpoint');
+}
+async function discover(deep){
+  const base=$('node').value.replace(/\/$/,'');
+  let top=await latest(base);const manual=Number($('from').value);
+  const depth=Math.max(20,Number($('depth').value)||300)*(deep?5:1);
+  if(!top&&!manual){log('Could not find the latest block height. Type a recent block height in "From block height" (see SupraScan) and press Scan now.');return 0}
+  if(!top)top=manual+depth;
+  let start=(lastH&&!deep)?lastH+1:Math.max(1,top-depth);
+  if(manual&&!lastH&&!deep)start=manual;
+  start=Math.max(start,top-depth*2);
+  const hs=[];for(let h=start;h<=top;h++)hs.push(h);
+  let found=0,got=0,done=0;const types=new Set();
+  try{await getBlock(base,top)}catch(e){} // detect which block endpoint works before going parallel
+  await pmap(hs,10,async h=>{
+    let j=null;
+    for(let t=0;t<2&&!j;t++){try{j=await getBlock(base,h)}catch(e){}}
+    done++;if(done%25===0)log(`Auto find: reading blocks ${done}/${hs.length}...`);
+    if(!j)return;got++;
+    const bts=findTs(j);
+    walk(j,ev=>{if(NFT_RE.test(ev.type)&&!SKIP_RE.test(ev.type)){types.add(ev.type);found+=addEv(norm({event:ev,block_height:h,timestamp:bts},ev.type))}});
+  });
+  lastH=Math.max(lastH,top);
+  const ta=$('types');const have=new Set(ta.value.split('\n').map(x=>x.trim()));
+  for(const t of types)if(!have.has(t))ta.value+=(ta.value.endsWith('\n')||!ta.value?'':'\n')+t;
+  log(`Auto find: read ${got}/${hs.length} blocks (${start}-${top}), ${found} new NFT-like events, ${types.size} event types${got?'':' (block endpoint did not answer)'}.`);
+  return found}
+async function auto(deep){
+  if(busy)return;busy=true;
+  try{await discover(deep===true);await scan()}
+  catch(e){$('status').className='msg err';$('status').textContent='Scan error: '+e.message}
+  finally{busy=false}
+}
+function hue(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return h}
+function render(fresh){
+  const q=$('q').value.trim().toLowerCase(),all=[...events.values()],now=Date.now();
+  const gs=groups().filter(g=>!q||g.k.toLowerCase().includes(q));
+  const mints=all.filter(e=>/mint/i.test(e.type));
+  $('sCol').textContent=groups().length;$('sMint').textContent=mints.length;
+  $('sWal').textContent=new Set(all.map(e=>e.who).filter(Boolean)).size;
+  const hasTs=all.some(e=>e.ts);$('s24').textContent=hasTs?all.filter(e=>e.ts>now-864e5).length:all.length;
+  const top=[...gs].sort((a,b)=>b.n-a.n).slice(0,16),mx=Math.max(1,...top.map(g=>g.n));
+  // spread dots with the golden angle so they do not pile on top of each other
+  $('radar').innerHTML='<div class="sweep"></div>'+top.map((g,i)=>{const a=(i*137.5)*Math.PI/180,r=14+(1-g.n/mx)*28;
+    return `<div class="dot" title="${esc(g.k)} (${g.n} events)" style="left:${50+r*Math.cos(a)}%;top:${50+r*Math.sin(a)}%;background:hsl(${hue(g.k)},70%,60%)">${esc(g.k.replace(/^0x/,'').slice(0,2).toUpperCase())}</div>`}).join('');
+  const t=(h,r)=>r.length?`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.join('')}</table>`:'<div class="msg">Nothing here yet. The radar fills up as it scans.</div>';
+  $('v-col').innerHTML=t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${sh(g.k)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`));
+  const W=[['1h',36e5],['24h',864e5],['7d',6048e5]];
+  const rows=gs.map(g=>{const r={k:g.k,all:g.n};for(const[n,ms]of W)r[n]=all.filter(e=>(e.col||e.tok||'(unknown)')===g.k&&e.ts>now-ms).length;return r})
+    .sort((a,b)=>hasTs?(b['24h']-a['24h']||b['1h']-a['1h']||b.all-a.all):b.all-a.all);
+  $('v-trend').innerHTML=(hasTs?'':'<div class="msg">No timestamps in events, ranking by total count.</div>')+t(['Collection / token','1h','24h','7d','Total'],rows.slice(0,30).map(r=>`<tr><td>${sh(r.k)}</td><td>${r['1h']}</td><td>${r['24h']}</td><td>${r['7d']}</td><td>${r.all}</td></tr>`));
+  const ev=(l)=>l.sort((a,b)=>b.ts-a.ts).slice(0,100).map(e=>`<tr><td>${e.ts?new Date(e.ts).toLocaleString():'#'+esc(e.height)}</td><td>${esc(e.type)}</td><td>${sh(e.col||e.tok||'-')}${raw(e)}</td><td>${sh(e.who||'-')}</td></tr>`);
+  const qf=e=>!q||JSON.stringify(e.data).toLowerCase().includes(q)||e.type.toLowerCase().includes(q);
+  $('v-new').innerHTML=t(['When','Type','Collection / token','Wallet'],ev(mints.filter(qf)));
+  // pinned Grizzle collection, always on top
+  const pn=PIN.name.toLowerCase(),pa=nA(PIN.addr);
+  const pe=all.filter(e=>addrs(e).has(pa)||JSON.stringify(e.data).toLowerCase().includes(pn));
+  const pm=pe.filter(e=>/mint/i.test(e.type)),pl=Math.max(0,...pe.map(e=>e.ts));
+  $('pin').innerHTML=`<div class="ph"><img src="${PIN.img}" alt="" onerror="this.style.display='none'"><div><h3>${esc(PIN.name)} <b>• ${PIN.supply} supply</b></h3><a href="${PIN.url}" target="_blank" rel="noopener">View on Crystara</a></div></div>
+  <div class="grid"><div class="stat"><span>Events</span><b>${pe.length}</b></div><div class="stat"><span>Mints</span><b>${pm.length}</b></div><div class="stat"><span>Wallets</span><b>${new Set(pe.map(e=>e.who).filter(Boolean)).size}</b></div><div class="stat"><span>Last activity</span><b style="font-size:14px">${pl?new Date(pl).toLocaleString():'-'}</b></div></div>`;
+  // wallet tab
+  const wv=$('wal').value.trim();
+  if(!wv){$('v-wal').innerHTML='<div class="msg">Paste a wallet address in the box at the top to see every NFT event it appears in.</div>'}
+  else{
+    const WA=nA(wv),mine=all.filter(e=>addrs(e).has(WA)&&qf(e));
+    const cols=new Set(mine.map(e=>e.col||e.tok).filter(Boolean));
+    $('v-wal').innerHTML=`<div class="msg">Wallet: ${esc(wv)}</div><div class="grid"><div class="stat"><span>Events for this wallet</span><b>${mine.length}</b></div><div class="stat"><span>Collections / tokens</span><b>${cols.size}</b></div></div>`
+      +(mine.length?`<div style="margin-top:14px">${t(['When','Type','Collection / token','Wallet'],ev(mine))}</div>`
+        :'<div class="msg">Nothing for this wallet in the scanned blocks yet. Press "Deep scan (5x blocks)" in Settings to look further back.</div>');
+  }
+}
+function showTab(id){
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x.dataset.t===id));
+  for(const i of['radar','wal','trend','new','col'])$('v-'+i).classList.toggle('hide',id!==i);
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+$('go').onclick=()=>auto(false);$('deep').onclick=()=>auto(true);
+$('q').oninput=()=>render(0);
+function setWallet(v,save){
+  v=v.trim();
+  if(!/^0x[0-9a-f]{20,}$/i.test(v))return false;
+  if(save)try{localStorage.setItem('grizzleWallet',v)}catch(e){}
+  $('wal').value=v;$('walShort').textContent=v.slice(0,8)+'…'+v.slice(-4);$('walShort').title=v;
+  $('walBox').classList.add('hide');$('walChip').classList.remove('hide');render(0);return true;
+}
+$('wal').oninput=()=>setWallet($('wal').value,true);
+$('walChange').onclick=()=>{
+  try{localStorage.removeItem('grizzleWallet')}catch(e){}
+  $('wal').value='';$('walChip').classList.add('hide');$('walBox').classList.remove('hide');$('wal').focus();render(0);
+};
+try{const w=localStorage.getItem('grizzleWallet');if(w)setWallet(w,false)}catch(e){}
+$('auto').onclick=()=>{
+  if(timer){clearInterval(timer);timer=null;$('auto').textContent='Auto refresh: off'}
+  else{timer=setInterval(()=>auto(false),30000);$('auto').textContent='Auto refresh: 30s';auto(false)}
+};
+$('auto').click();
+</script></body></html>
