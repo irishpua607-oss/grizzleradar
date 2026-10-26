@@ -218,8 +218,8 @@ function parseLive(j){
   return {minted,max:maxN,price:pr,active:act===undefined?undefined:(act===true||act==='true')};
 }
 let GLok=null,GLfns='';
-async function viewCall(base,ep,f,args){
-  const r=await fetch(base+ep,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({function:f,type_arguments:[],arguments:args})});
+async function viewCall(base,ep,f,args,targs){
+  const r=await fetch(base+ep,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({function:f,type_arguments:targs||[],arguments:args})});
   const t=await r.text();let j={};try{j=JSON.parse(t)}catch(e){}
   if(!r.ok)throw new Error(f.split('::').pop()+' '+r.status+' '+t.replace(/\s+/g,' ').slice(0,90));
   const p=parseLive(j);if(!p)throw new Error(f.split('::').pop()+' no stats in result: '+t.replace(/\s+/g,' ').slice(0,160));
@@ -242,10 +242,42 @@ function argFor(t,i,who){
   if(t==='bool')return false;
   return undefined; // unknown type, skip this function
 }
+const COIN='0x1::supra_coin::SupraCoin';
+const tyCount=f=>(f.generic_type_params||f.genericTypeParams||[]).length;
+
+// fallback: no view call needed, read the account resources straight from the official Supra REST API
+async function readResources(base,addrs){
+  const want=[GL_NAME.toLowerCase(),hexName(GL_NAME).toLowerCase()];
+  for(const a of addrs){
+    for(const v of ['v1','v3']){
+      let cursor='',pages=0;
+      while(pages<6){
+        pages++;
+        let list=[];
+        try{
+          const u=`${base}/rpc/${v}/accounts/${a}/resources?count=100${cursor?'&start='+encodeURIComponent(cursor):''}`;
+          const r=await fetch(u,{headers:{Accept:'application/json'}});
+          if(!r.ok)break;
+          const j=await r.json();
+          list=Array.isArray(j)?j:(j.Resources||j.resources||j.result||[]);
+          cursor=r.headers.get('x-supra-cursor')||'';
+          for(const res of (Array.isArray(list)?list:Object.entries(list).map(([k,x])=>({type:k,data:x})))){
+            const txt=JSON.stringify(res).toLowerCase();
+            if(!want.some(w=>txt.includes(w)))continue;
+            const p=parseLive({result:res.data||res});
+            if(p&&(p.minted!==undefined||p.price!==undefined))return Object.assign(p,{at:Date.now(),src:'resource '+String(res.type||'').split('::').slice(-2).join('::')});
+          }
+        }catch(e){break}
+        if(!cursor)break;
+      }
+    }
+  }
+  return null;
+}
 let GLlast=0;
 async function liveGrizzle(){
   const base=$('node').value.replace(/\/$/,'');
-  if(GLok){try{GL=Object.assign(await viewCall(base,GLok.ep,GLok.f,GLok.a),{at:Date.now(),src:GLok.f.split('::').pop()});GLerr='';return true}catch(e){GLok=null}}
+  if(GLok){try{GL=Object.assign(await viewCall(base,GLok.ep,GLok.f,GLok.a,GLok.t),{at:Date.now(),src:GLok.f.split('::').pop()});GLerr='';return true}catch(e){GLok=null}}
   if(Date.now()-GLlast<60000&&!GL)return false; // do not hammer the node while it keeps failing
   GLlast=Date.now();
   const fn=$('gfn').value.trim(),[addr,mod]=fn.split('::');
@@ -260,19 +292,21 @@ async function liveGrizzle(){
       if((f.params||[]).some(x=>/signer/.test(x)))continue;
       for(const who of [PIN.addr,addr]){
         const a=(f.params||[]).map((t,i)=>argFor(t,i,who));if(a.includes(undefined))continue;
-        tries.push([`${addr}::${mod}::${f.name}`,a]);
+        tries.push([`${addr}::${mod}::${f.name}`,a,Array(tyCount(f)).fill(COIN)]);
       }
     }
   }
-  tries.push([fn,[PIN.addr,GL_NAME]]); // last resort: the function typed in Settings
+  tries.push([fn,[PIN.addr,GL_NAME],[COIN]]); // last resort: the function typed in Settings (needs 1 type arg)
+  tries.push([fn,[PIN.addr,GL_NAME],[]]);
   const seen=new Set();
-  for(const [f,a] of tries){
+  for(const [f,a,t] of tries){
     for(const ep of ['/rpc/v3/view','/rpc/v1/view']){
-      try{const p=await viewCall(base,ep,f,a);GL=Object.assign(p,{at:Date.now(),src:f.split('::').pop()});GLok={ep,f,a};GLerr='';return true}
+      try{const p=await viewCall(base,ep,f,a,t);GL=Object.assign(p,{at:Date.now(),src:f.split('::').pop()});GLok={ep,f,a,t};GLerr='';return true}
       catch(e){const k=f.split('::').pop();if(!seen.has(k)&&errs.length<5){seen.add(k);errs.push(e.message)}}
     }
   }
-  GLerr=errs.join(' | ')+(GLfns?' | lootbox functions: '+GLfns:' | could not read contract ABI');return false;
+  try{const rp=await readResources(base,[PIN.addr,addr]);if(rp){GL=rp;GLerr='';return true}}catch(e){}
+  GLerr='Cannot read live stats yet (view calls failed, no matching resource on the account). '+errs.slice(0,2).join(' | ')+(GLfns?' | lootbox functions: '+GLfns:' | could not read contract ABI');return false;
 }
 function liveHtml(){
   if(!GL)return `<div class="gl"><span class="tag off">Auto-detect: connecting…</span><div class="msg err">${esc(GLerr||'Loading...')}</div></div>`;
