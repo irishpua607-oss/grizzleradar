@@ -36,6 +36,7 @@ details pre{white-space:pre-wrap;font-size:12px;color:var(--mute);margin:4px 0}
 button.b{background:var(--g);color:#04120a;border:0;border-radius:10px;padding:10px 16px;font:700 14px inherit;cursor:pointer}button.b.o{background:none;color:var(--ink);border:1px solid var(--line)}
 button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--amber)}
 .pin{border-color:var(--g);background:linear-gradient(180deg,#0e2a1c,var(--panel));padding:14px}.pin .ph{display:flex;gap:12px;align-items:center}.pin img{width:96px;height:48px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.pin h3{margin:0;font:800 17px/1.2 "Trebuchet MS",system-ui,sans-serif}.pin h3 b{color:var(--g)}.pin a{color:var(--amber);font-size:13px}.pin .grid{grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.pin .stat{padding:8px}.pin .stat b{font-size:20px}.pin .stat span{font-size:12px}@media(max-width:520px){.pin .grid{grid-template-columns:1fr 1fr}}.hide{display:none}.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:0 0 10px;border:1px solid var(--line);border-radius:14px;background:#0a1812;font-size:14px}.chip.hide{display:none}.chip span{color:var(--mute)}.chip b{color:var(--g);font-family:monospace}.chip button{margin-left:auto;background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:5px 10px;cursor:pointer}summary{cursor:pointer;color:var(--mute)}
+.gl{margin-top:12px}.gl .bar{height:12px;border-radius:8px;background:#09150f;border:1px solid var(--line);overflow:hidden}.gl .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--g2),var(--g));transition:width .6s}.gl .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-top:6px}.gl .meta b{color:var(--ink)}.tag{display:inline-block;border-radius:20px;padding:1px 10px;font-size:12px;border:1px solid var(--line);color:var(--mute)}.tag.on{color:var(--g);border-color:var(--g)}.tag.off{color:var(--amber);border-color:#6b5420}
 </style></head><body><div class="wrap">
 <div class="top"><div class="logo"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="7" cy="8" r="4" fill="#2dff8f"/><circle cx="23" cy="8" r="4" fill="#2dff8f"/><circle cx="15" cy="16" r="10" fill="#2dff8f"/><circle cx="11" cy="14" r="1.6" fill="#06100b"/><circle cx="19" cy="14" r="1.6" fill="#06100b"/><ellipse cx="15" cy="19" rx="3.6" ry="2.6" fill="#06100b"/></svg></div><h1>GRIZZLE <b>RADAR</b></h1><span class="live">Live</span></div>
 <div id="walBox"><input class="search" id="wal" placeholder="Paste your wallet address (0x...) one time" aria-label="Wallet address" autocomplete="off" spellcheck="false"></div><div class="chip hide" id="walChip"><span>Wallet</span><b id="walShort"></b><button id="walChange">Change</button></div>
@@ -51,6 +52,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
 <label for="depth">Blocks to scan per run (more = finds more NFTs, but slower)</label><input id="depth" value="600">
 <label for="types">Event types (auto-filled by the radar, add more if you like)</label><textarea id="types"></textarea>
 <label for="pool">Pool filter: only events containing this text (for example the Crystara contract address)</label><input id="pool" placeholder="0x...">
+<label for="gfn">Grizzle live view function (Crystara contract call, leave as is unless the radar says it cannot read it)</label><input id="gfn" value="0xfd566b048d7ea241ebd4d28a3d60a9eaaaa29a718dfff52f2ff4ca8581363b85::crystara_blindbox_v1::get_lootbox_info">
 <label for="from">From block height (only if auto find cannot read the latest block)</label><input id="from" placeholder="optional">
 <div class="row"><button class="b" id="go">Scan now</button><button class="b o" id="deep">Deep scan (5x blocks)</button><button class="b o" id="auto">Auto refresh: off</button></div></details>
 <div id="status" class="msg">Starting auto scan...</div><div id="log" class="msg"></div>
@@ -143,14 +145,14 @@ function walk(o,cb){if(Array.isArray(o))o.forEach(x=>walk(x,cb));else if(o&&type
 function findH(o){let h=0;(function f(x){if(h||!x||typeof x!=='object')return;for(const k in x){if(/^(block_)?height$/i.test(k)&&Number(x[k])>0){h=Number(x[k]);return}}for(const k in x)f(x[k])})(o);return h}
 function findTs(o){let t=0;(function f(x){if(t||!x||typeof x!=='object')return;for(const k in x){if(/^(block_)?timestamp$/i.test(k)&&Number(x[k])>0){t=Number(x[k]);return}}for(const k in x)f(x[k])})(o);return t}
 async function latest(base){
-  for(const u of ['/rpc/v3/block/latest','/rpc/v1/consensus/latest_block','/rpc/v1/block','/rpc/v1/consensus/block'])
+  for(const u of ['/rpc/v3/block','/rpc/v1/block','/rpc/v2/block','/rpc/v1/consensus/latest_block','/rpc/v1/consensus/block'])
     try{const h=findH(await getJ(base+u));if(h)return h}catch(e){}
   return 0}
 async function getBlock(base,h){
-  const T=[h=>`${base}/rpc/v3/block/${h}`,h=>`${base}/rpc/v1/consensus/block/height/${h}?with_batches=true`];
+  const T=[h=>`${base}/rpc/v3/block/height/${h}?with_finalized_transactions=true`,h=>`${base}/rpc/v1/block/height/${h}?with_finalized_transactions=true`,h=>`${base}/rpc/v3/block/height/${h}`,h=>`${base}/rpc/v2/block/height/${h}?with_finalized_transactions=true`,h=>`${base}/rpc/v1/consensus/block/height/${h}?with_batches=true`];
   if(blockIdx>=0)return getJ(T[blockIdx](h));
-  for(let i=0;i<T.length;i++){try{const j=await getJ(T[i](h));blockIdx=i;return j}catch(e){}}
-  throw new Error('no block endpoint');
+  for(let i=0;i<T.length;i++){try{const j=await getJ(T[i](h));blockIdx=i;return j}catch(e){window._be=e.message}}
+  throw new Error('no block endpoint: '+(window._be||'?'));
 }
 async function discover(deep){
   const base=$('node').value.replace(/\/$/,'');
@@ -175,14 +177,61 @@ async function discover(deep){
   lastH=Math.max(lastH,top);
   const ta=$('types');const have=new Set(ta.value.split('\n').map(x=>x.trim()));
   for(const t of types)if(!have.has(t))ta.value+=(ta.value.endsWith('\n')||!ta.value?'':'\n')+t;
-  log(`Auto find: read ${got}/${hs.length} blocks (${start}-${top}), ${found} new NFT-like events, ${types.size} event types${got?'':' (block endpoint did not answer)'}.`);
+  log(`Auto find: read ${got}/${hs.length} blocks (${start}-${top}), ${found} new NFT-like events, ${types.size} event types${got?'':' (block endpoint did not answer: '+(window._be||'blocked/CORS?')+')'}.`);
   return found}
 async function auto(deep){
   if(busy)return;busy=true;
-  try{await discover(deep===true);await scan()}
+  try{liveGrizzle().then(()=>render(0));await discover(deep===true);await scan()}
   catch(e){$('status').className='msg err';$('status').textContent='Scan error: '+e.message}
   finally{busy=false}
 }
+
+// ---- Grizzle live stats (minted / supply / price) straight from the Supra node ----
+let GL=null,GLerr='';
+const GL_NAME='GRIZZLE JUNKYARD DEFENDERS';
+const hexName=s=>'0x'+[...new TextEncoder().encode(s)].map(b=>b.toString(16).padStart(2,'0')).join('');
+function findKey(o,re){let r;(function f(x){if(r!==undefined||!x||typeof x!=='object')return;for(const k in x){if(re.test(k)&&x[k]!==null&&typeof x[k]!=='object'){r=x[k];return}}for(const k in x)f(x[k])})(o);return r}
+function parseLive(j){
+  const root=Array.isArray(j.result)?j.result:(j.result||j);
+  let o=root;
+  // view results may come as an array of values or a JSON string
+  const flat=[];(function f(x){if(typeof x==='string'){try{const p=JSON.parse(x);if(p&&typeof p==='object')return f(p)}catch(e){}flat.push(x)}else if(x&&typeof x==='object')Object.values(x).forEach(f);else flat.push(x)})(root);
+  const price=findKey(o,/^price$/i),max=findKey(o,/^max_?supply$/i),rolled=findKey(o,/^(rolled|minted|total_?minted)$/i),stock=findKey(o,/^stock$/i),act=findKey(o,/^is_?active$/i);
+  if(max===undefined&&rolled===undefined&&price===undefined)return null;
+  const N=v=>v===undefined?undefined:Number(v);
+  const maxN=N(max)||PIN.supply;
+  let minted=N(rolled);if(minted===undefined&&N(stock)!==undefined)minted=maxN-N(stock);
+  let pr=N(price);if(pr!==undefined&&pr>=1e8)pr=pr/1e8; // octas -> SUPRA
+  return {minted,max:maxN,price:pr,active:act===undefined?undefined:(act===true||act==='true')};
+}
+async function liveGrizzle(){
+  const base=$('node').value.replace(/\/$/,'');
+  const fn=$('gfn').value.trim();
+  const fns=[...new Set([fn,fn.replace(/::[^:]+$/,'::get_lootbox'),fn.replace(/::[^:]+$/,'::get_lootbox_stats')])];
+  // arguments guess: (creator address, collection name, viewer). Tries with and without the viewer.
+  const argSets=[[PIN.addr,GL_NAME,'0x0'],[PIN.addr,GL_NAME],[PIN.addr,hexName(GL_NAME)]];
+  const errs=[];
+  for(const f of fns)for(const a of argSets){
+    for(const ep of ['/rpc/v3/view','/rpc/v1/view']){
+      try{
+        const r=await fetch(base+ep,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({function:f,type_arguments:[],arguments:a})});
+        const j=await r.json().catch(()=>({}));
+        if(!r.ok){errs.push(f.split('::').pop()+' '+r.status);continue}
+        const p=parseLive(j);if(p){GL=Object.assign(p,{at:Date.now(),src:f.split('::').pop()});GLerr='';return true}
+        errs.push('no stats in result');
+      }catch(e){errs.push(e.message)}
+    }
+  }
+  GLerr=[...new Set(errs)].slice(0,3).join('; ');return false;
+}
+function liveHtml(){
+  if(!GL)return `<div class="gl"><span class="tag off">Live: not connected</span><div class="msg err">${esc(GLerr||'Loading...')} — the radar still counts mints from chain events below.</div></div>`;
+  const m=GL.minted===undefined?0:GL.minted,pct=Math.min(100,Math.round(m/GL.max*1000)/10);
+  return `<div class="gl"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag on">Live</span>${GL.active===undefined?'':`<span class="tag ${GL.active?'on':'off'}">${GL.active?'Mint open':'Mint closed'}</span>`}${m>=GL.max?'<span class="tag off">SOLD OUT</span>':''}</div>
+  <div class="grid"><div class="stat"><span>Minted</span><b>${m} / ${GL.max}</b></div><div class="stat"><span>Mint price</span><b style="font-size:22px">${GL.price===undefined?'-':GL.price.toLocaleString(undefined,{maximumFractionDigits:2})+' SUPRA'}</b></div></div>
+  <div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div><div class="meta"><span><b>${pct}%</b> minted</span><span><b>${Math.max(0,GL.max-m)}</b> left</span><span>${new Date(GL.at).toLocaleTimeString()}</span></div></div>`;
+}
+
 function hue(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return h}
 function render(fresh){
   const q=$('q').value.trim().toLowerCase(),all=[...events.values()],now=Date.now();
@@ -209,7 +258,7 @@ function render(fresh){
   const pe=all.filter(e=>addrs(e).has(pa)||JSON.stringify(e.data).toLowerCase().includes(pn));
   const pm=pe.filter(e=>/mint/i.test(e.type)),pl=Math.max(0,...pe.map(e=>e.ts));
   $('pin').innerHTML=`<div class="ph"><img src="${PIN.img}" alt="" onerror="this.style.display='none'"><div><h3>${esc(PIN.name)} <b>• ${PIN.supply} supply</b></h3><a href="${PIN.url}" target="_blank" rel="noopener">View on Crystara</a></div></div>
-  <div class="grid"><div class="stat"><span>Events</span><b>${pe.length}</b></div><div class="stat"><span>Mints</span><b>${pm.length}</b></div><div class="stat"><span>Wallets</span><b>${new Set(pe.map(e=>e.who).filter(Boolean)).size}</b></div><div class="stat"><span>Last activity</span><b style="font-size:14px">${pl?new Date(pl).toLocaleString():'-'}</b></div></div>`;
+  ${liveHtml()}<div class="grid"><div class="stat"><span>Events (scanned)</span><b>${pe.length}</b></div><div class="stat"><span>Mints</span><b>${pm.length}</b></div><div class="stat"><span>Wallets</span><b>${new Set(pe.map(e=>e.who).filter(Boolean)).size}</b></div><div class="stat"><span>Last activity</span><b style="font-size:14px">${pl?new Date(pl).toLocaleString():'-'}</b></div></div>`;
   // wallet tab
   const wv=$('wal').value.trim();
   if(!wv){$('v-wal').innerHTML='<div class="msg">Paste a wallet address in the box at the top to see every NFT event it appears in.</div>'}
