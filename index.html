@@ -39,6 +39,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
 .gl{margin-top:12px}.gl .bar{height:12px;border-radius:8px;background:#09150f;border:1px solid var(--line);overflow:hidden}.gl .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--g2),var(--g));transition:width .6s}.gl .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-top:6px}.gl .meta b{color:var(--ink)}.tag{display:inline-block;border-radius:20px;padding:1px 10px;font-size:12px;border:1px solid var(--line);color:var(--mute)}.tag.on{color:var(--g);border-color:var(--g)}.tag.off{color:var(--amber);border-color:#6b5420}
 .th{position:relative;display:inline-grid;place-items:center;width:38px;height:38px;border-radius:10px;border:2px solid var(--g);overflow:hidden;font:800 12px inherit;color:#04120a;vertical-align:middle;margin-right:8px;flex:none}.th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .big{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.big div{background:#07130d;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.big span{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9bb7a8}.big b{display:block;font-size:40px;line-height:1.1;margin-top:4px}.big .m b{color:var(--g)}.big .l b{color:#ffd24a}.pbar{height:14px;border-radius:8px;background:#09150f;border:1px solid var(--line);overflow:hidden;margin-top:10px}.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--g2),var(--g));transition:width .6s}.pnote{font-size:12px;color:#9bb7a8;margin-top:6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.gl .msg,.msg.err{word-break:break-word;overflow-wrap:anywhere}.unn{opacity:.55}
 </style></head><body><script>
 // Route Supra RPC calls through our own /api/supra proxy (browser CORS blocks direct calls -> "Failed to fetch").
 // Falls back to a direct call if the proxy is not deployed.
@@ -129,10 +130,11 @@ async function scan(){
 function groups(){
   const g=new Map();
   for(const e of events.values()){const k=e.col||e.tok||'(unknown)';
-    if(!g.has(k))g.set(k,{k,n:0,last:0,who:new Set(),ev:e});
-    const o=g.get(k);o.n++;o.last=Math.max(o.last,e.ts);if(e.who)o.who.add(e.who)}
-  return [...g.values()];
+    if(!g.has(k))g.set(k,{k,n:0,last:0,who:new Set(),ev:e,evs:[]});
+    const o=g.get(k);o.evs.push(e);o.n++;o.last=Math.max(o.last,e.ts);if(e.who)o.who.add(e.who)}
+  GRP=g;return [...g.values()];
 }
+let GRP=new Map();
 function raw(e){return `<details><summary>raw</summary><pre>${esc(JSON.stringify(e.data,null,1))}</pre></details>`}
 
 // run fn over items with a limited number of requests at the same time
@@ -222,7 +224,7 @@ async function viewCall(base,ep,f,args,targs){
   const r=await fetch(base+ep,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({function:f,type_arguments:targs||[],arguments:args})});
   const t=await r.text();let j={};try{j=JSON.parse(t)}catch(e){}
   if(!r.ok)throw new Error(f.split('::').pop()+' '+r.status+' '+t.replace(/\s+/g,' ').slice(0,90));
-  const p=parseLive(j);if(!p)throw new Error(f.split('::').pop()+' no stats in result: '+t.replace(/\s+/g,' ').slice(0,160));
+  const p=parseLive(j);if(!p)throw new Error(f.split('::').pop()+' no stats in result: '+t.replace(/\s+/g,' ').slice(0,900));
   return p;
 }
 // read the contract's own function list so we do not have to guess names
@@ -306,24 +308,86 @@ async function liveGrizzle(){
     }
   }
   try{const rp=await readResources(base,[PIN.addr,addr]);if(rp){GL=rp;GLerr='';return true}}catch(e){}
-  GLerr='Cannot read live stats yet (view calls failed, no matching resource on the account). '+errs.slice(0,2).join(' | ')+(GLfns?' | lootbox functions: '+GLfns:' | could not read contract ABI');return false;
+  GLerr='Cannot read live stats yet (view calls failed, no matching resource on the account). '+errs.slice(0,1).join(' | ')+(GLfns?' | lootbox functions: '+GLfns:' | could not read contract ABI');return false;
 }
 function liveHtml(){
   if(!GL)return `<div class="gl"><span class="tag off">Auto-detect: connecting…</span><div class="msg err">${esc(GLerr||'Loading...')}</div></div>`;
   return `<div class="gl"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag on">Live</span>${GL.active===undefined?'':`<span class="tag ${GL.active?'on':'off'}">${GL.active?'Mint open':'Mint closed'}</span>`}${(GL.minted!==undefined&&GL.minted>=GL.max)?'<span class="tag off">SOLD OUT</span>':''}${GL.price===undefined?'':`<span class="tag on">Price: ${GL.price.toLocaleString(undefined,{maximumFractionDigits:2})} SUPRA</span>`}</div></div>`;
 }
+// ---- names: show NFT/collection names, never raw wallet addresses ----
+const NAMES=new Map(),isAddr=x=>/^0x[0-9a-fA-F]{12,}$/.test(String(x||''));
+function evName(e){
+  const d=e&&e.data;if(!d)return '';
+  for(const re of [/^collection_?name$/i,/^collection$/i,/^token_?name$/i,/^name$/i,/collection.*name/i,/name/i]){
+    let best='';
+    (function f(x,dp){if(best||!x||typeof x!=='object'||dp>4)return;for(const k in x){const v=x[k];if(re.test(k)&&typeof v==='string'&&v&&!isAddr(v)){best=v;return}}for(const k in x)f(x[k],dp+1)})(d,0);
+    if(best)return best;
+  }
+  return '';
+}
+const labelOf=(k,e)=>{k=String(k);return isAddr(k)?(NAMES.get(nA(k))||evName(e)||''):k};
+function nm(k,e){const l=labelOf(k,e);return l?`<span title="${esc(k)}">${esc(l)}</span>`:`<span class="unn">${sh(k)}</span>`}
+// ask the node what an address is (collection or token object) and get its name
+async function resolveName(base,a,depth){
+  for(const v of ['v1','v3']){
+    try{
+      const j=await getJ(`${base}/rpc/${v}/accounts/${a}/resources?count=100`);
+      const list=Array.isArray(j)?j:(j.Resources||j.resources||j.result||[]);
+      let coll='',tok='',ref='';
+      for(const r of list){const t=String(r.type||''),d=r.data||{};
+        if(/::collection::Collection$/.test(t)&&typeof d.name==='string')coll=d.name;
+        if(/::token::Token$/.test(t)){tok=typeof d.name==='string'?d.name:'';const c=d.collection;ref=(c&&(c.inner||c))||''}}
+      if(coll)return coll;
+      if(typeof ref==='string'&&isAddr(ref)&&(depth||0)<2){const c=await resolveName(base,ref,(depth||0)+1);if(c)return c}
+      if(tok)return tok;
+    }catch(e){}
+  }
+  return '';
+}
+let RES=false;
+async function resolveMissing(){
+  if(RES)return;RES=true;
+  try{
+    const base=$('node').value.replace(/\/$/,'');
+    const todo=groups().filter(g=>isAddr(g.k)&&!NAMES.has(nA(g.k))&&!evName(g.ev)).slice(0,30);
+    let got=0;
+    await pmap(todo,4,async g=>{const n=await resolveName(base,g.k,0);NAMES.set(nA(g.k),n||'');if(n)got++});
+    if(got)render0(0);
+  }finally{RES=false}
+}
+// ---- logos: Crystara CDN path is <creator>-<collection name>/banner.jpg; try the likely creator addresses one by one ----
+const IMGL=new Map(),IMGOK={},IMGBAD=new Set(),CDN='https://cdn2.crystara.trade/collections/';
+function imgList(k,e){
+  k=String(k);
+  if(IMGOK[k])return [IMGOK[k]];
+  if(nA(k)===nA(PIN.addr)||/grizzle junkyard/i.test(k+' '+evName(e)))return [PIN.img];
+  const name=labelOf(k,e);if(!name)return [];
+  const g=GRP.get(k),evs=g?g.evs.slice(0,40):[e],score=new Map(),urls=new Set();
+  for(const ev of evs)(function f(x,key,dp){
+    if(dp>5||x==null)return;
+    if(typeof x==='string'){
+      if(/^0x[0-9a-fA-F]{40,}$/.test(x)){const a=nA(x),o=score.get(a)||{s:0,raw:x};o.s+=/creator/i.test(key)?5:1;score.set(a,o)}
+      else if(/^(https?:\/\/|ipfs:\/\/)\S+\.(png|jpe?g|gif|webp)(\?\S*)?$/i.test(x))urls.add(x.replace(/^ipfs:\/\//,'https://ipfs.io/ipfs/'));
+      return}
+    if(typeof x==='object')for(const kk in x)f(x[kk],/creator/i.test(key)?key:kk,dp+1);
+  })(ev.data,'',0);
+  const top=[...score.values()].sort((a,b)=>b.s-a.s).slice(0,5).map(o=>`${CDN}${o.raw}-${encodeURIComponent(name)}/banner.jpg`);
+  return [...top,...[...urls].slice(0,2)];
+}
+function imgNext(im){const k=im.dataset.k,L=IMGL.get(k)||[],i=Number(im.dataset.i)+1;if(i<L.length){im.dataset.i=i;im.src=L[i]}else{IMGBAD.add(k);im.remove()}}
 function thumb(e,k){
-  const d=(e&&e.data)||{};k=String(k);
-  const creator=pick(d,['creator']),name=pick(d,['collection_name','collection']);
-  let u='';
-  if(nA(k)===nA(PIN.addr)||/grizzle junkyard/i.test(k+' '+name))u=PIN.img;
-  else if(/^0x[0-9a-f]{20,}$/i.test(creator||'')&&name&&!/^0x[0-9a-f]{20,}$/i.test(name))u=`https://cdn2.crystara.trade/collections/${creator}-${encodeURIComponent(name)}/banner.jpg`;
-  return `<span class="th" style="background:hsl(${hue(k)},70%,60%)">${esc(k.replace(/^0x/,'').slice(0,2).toUpperCase())}${u?`<img src="${esc(u)}" loading="lazy" referrerpolicy="no-referrer" alt="" onerror="this.remove()">`:''}</span>`;
+  k=String(k);const lab=labelOf(k,e)||k,L=IMGBAD.has(k)?[]:imgList(k,e);IMGL.set(k,L);
+  return `<span class="th" style="background:hsl(${hue(k)},70%,60%)">${esc(lab.replace(/^0x/,'').slice(0,2).toUpperCase())}${L.length?`<img src="${esc(L[0])}" data-k="${esc(k)}" data-i="0" loading="lazy" referrerpolicy="no-referrer" alt="" onload="IMGOK[this.dataset.k]=this.src" onerror="imgNext(this)">`:''}</span>`;
 }
 function hue(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return h}
-function render(fresh){
+let showUn=false;
+function render(fresh){render0(fresh);resolveMissing()}
+function render0(fresh){
   const q=$('q').value.trim().toLowerCase(),all=[...events.values()],now=Date.now();
-  const gs=groups().filter(g=>!q||g.k.toLowerCase().includes(q));
+  let gs=groups().filter(g=>!q||g.k.toLowerCase().includes(q)||labelOf(g.k,g.ev).toLowerCase().includes(q));
+  const named=gs.filter(g=>labelOf(g.k,g.ev)),hidden=gs.length-named.length;
+  if(!showUn&&named.length)gs=named;
+  const note=(hidden&&!showUn&&named.length)?`<div class="msg">${hidden} unnamed wallet/object entries hidden · <a href="#" style="color:var(--g)" onclick="showUn=true;render0(0);return false">show</a></div>`:'';
   const mints=all.filter(e=>/mint/i.test(e.type));
   $('sCol').textContent=groups().length;$('sMint').textContent=mints.length;
   $('sWal').textContent=new Set(all.map(e=>e.who).filter(Boolean)).size;
@@ -333,12 +397,12 @@ function render(fresh){
   $('radar').innerHTML='<div class="sweep"></div>'+top.map((g,i)=>{const a=(i*137.5)*Math.PI/180,r=14+(1-g.n/mx)*28;
     return `<div class="dot" title="${esc(g.k)} (${g.n} events)" style="left:${50+r*Math.cos(a)}%;top:${50+r*Math.sin(a)}%;background:hsl(${hue(g.k)},70%,60%)">${esc(g.k.replace(/^0x/,'').slice(0,2).toUpperCase())}</div>`}).join('');
   const t=(h,r)=>r.length?`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.join('')}</table>`:'<div class="msg">Nothing here yet. The radar fills up as it scans.</div>';
-  $('v-col').innerHTML=t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${thumb(g.ev,g.k)}${sh(g.k)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`));
+  $('v-col').innerHTML=note+t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${thumb(g.ev,g.k)}${nm(g.k,g.ev)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`));
   const W=[['1h',36e5],['24h',864e5],['7d',6048e5]];
   const rows=gs.map(g=>{const r={k:g.k,all:g.n,ev:g.ev};for(const[n,ms]of W)r[n]=all.filter(e=>(e.col||e.tok||'(unknown)')===g.k&&e.ts>now-ms).length;return r})
     .sort((a,b)=>hasTs?(b['24h']-a['24h']||b['1h']-a['1h']||b.all-a.all):b.all-a.all);
-  $('v-trend').innerHTML=(hasTs?'':'<div class="msg">No timestamps in events, ranking by total count.</div>')+t(['Collection / token','1h','24h','7d','Total'],rows.slice(0,30).map(r=>`<tr><td>${thumb(r.ev,r.k)}${sh(r.k)}</td><td>${r['1h']}</td><td>${r['24h']}</td><td>${r['7d']}</td><td>${r.all}</td></tr>`));
-  const ev=(l)=>l.sort((a,b)=>b.ts-a.ts).slice(0,100).map(e=>`<tr><td>${e.ts?new Date(e.ts).toLocaleString():'#'+esc(e.height)}</td><td>${esc(e.type)}</td><td>${thumb(e,e.col||e.tok||'-')}${sh(e.col||e.tok||'-')}${raw(e)}</td><td>${sh(e.who||'-')}</td></tr>`);
+  $('v-trend').innerHTML=note+(hasTs?'':'<div class="msg">No timestamps in events, ranking by total count.</div>')+t(['Collection / token','1h','24h','7d','Total'],rows.slice(0,30).map(r=>`<tr><td>${thumb(r.ev,r.k)}${nm(r.k,r.ev)}</td><td>${r['1h']}</td><td>${r['24h']}</td><td>${r['7d']}</td><td>${r.all}</td></tr>`));
+  const ev=(l)=>l.sort((a,b)=>b.ts-a.ts).slice(0,100).map(e=>`<tr><td>${e.ts?new Date(e.ts).toLocaleString():'#'+esc(e.height)}</td><td>${esc(e.type)}</td><td>${thumb(e,e.col||e.tok||'-')}${nm(e.col||e.tok||'-',e)}${raw(e)}</td><td>${sh(e.who||'-')}</td></tr>`);
   const qf=e=>!q||JSON.stringify(e.data).toLowerCase().includes(q)||e.type.toLowerCase().includes(q);
   $('v-new').innerHTML=t(['When','Type','Collection / token','Wallet'],ev(mints.filter(qf)));
   // pinned Grizzle collection, always on top
