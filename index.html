@@ -222,7 +222,7 @@ async function viewCall(base,ep,f,args){
   const r=await fetch(base+ep,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({function:f,type_arguments:[],arguments:args})});
   const t=await r.text();let j={};try{j=JSON.parse(t)}catch(e){}
   if(!r.ok)throw new Error(f.split('::').pop()+' '+r.status+' '+t.replace(/\s+/g,' ').slice(0,90));
-  const p=parseLive(j);if(!p)throw new Error(f.split('::').pop()+' no stats in result');
+  const p=parseLive(j);if(!p)throw new Error(f.split('::').pop()+' no stats in result: '+t.replace(/\s+/g,' ').slice(0,160));
   return p;
 }
 // read the contract's own function list so we do not have to guess names
@@ -232,37 +232,47 @@ async function abiFns(base,addr,mod){
   }
   return [];
 }
-function argFor(t,i){
-  t=String(t);
+function argFor(t,i,who){
+  t=String(t).replace(/^&(mut )?/,'');
   if(/signer/.test(t))return null;
-  if(t==='address')return i===0?PIN.addr:'0x0';
+  if(t==='address')return who;
   if(/String$/.test(t))return GL_NAME;
   if(/^vector<u8>$/.test(t))return hexName(GL_NAME);
+  if(/^u(8|16|32|64|128|256)$/.test(t))return '0';
+  if(t==='bool')return false;
   return undefined; // unknown type, skip this function
 }
+let GLlast=0;
 async function liveGrizzle(){
   const base=$('node').value.replace(/\/$/,'');
-  const errs=[];
   if(GLok){try{GL=Object.assign(await viewCall(base,GLok.ep,GLok.f,GLok.a),{at:Date.now(),src:GLok.f.split('::').pop()});GLerr='';return true}catch(e){GLok=null}}
+  if(Date.now()-GLlast<60000&&!GL)return false; // do not hammer the node while it keeps failing
+  GLlast=Date.now();
   const fn=$('gfn').value.trim(),[addr,mod]=fn.split('::');
-  const tries=[];
-  for(const f of [fn,fn.replace(/::[^:]+$/,'::get_lootbox')])for(const a of [[PIN.addr,GL_NAME,'0x0'],[PIN.addr,GL_NAME],[PIN.addr,hexName(GL_NAME)]])tries.push([f,a]);
-  // functions from the contract ABI
+  const errs=[],tries=[];
   const fs=await abiFns(base,addr,mod);
+  const verOf=n=>{const m=/_v(\d+)$/.exec(n);return m?Number(m[1]):0};
   if(fs.length){
-    GLfns=fs.map(f=>f.name+'('+(f.params||[]).filter(x=>!/signer/.test(x)).length+')').slice(0,25).join(', ');
-    for(const f of fs){
-      if(!/lootbox|info|stat|get|collection|supply|price|rolled/i.test(f.name))continue;
+    const info=fs.filter(f=>/^get_lootbox_info/.test(f.name)).sort((x,y)=>verOf(y.name)-verOf(x.name));
+    GLfns=info.map(f=>f.name+'('+(f.params||[]).filter(x=>!/signer/.test(x)).map(x=>String(x).split('::').pop()).join(',')+')').join(', ');
+    const rest=fs.filter(f=>/lootbox|stat|supply|price|rolled|minted|collection/i.test(f.name)&&!/^get_lootbox_info/.test(f.name)&&/^get_/.test(f.name));
+    for(const f of [...info,...rest]){
       if((f.params||[]).some(x=>/signer/.test(x)))continue;
-      const a=(f.params||[]).map(argFor);if(a.includes(undefined))continue;
-      tries.push([`${addr}::${mod}::${f.name}`,a]);
+      for(const who of [PIN.addr,addr]){
+        const a=(f.params||[]).map((t,i)=>argFor(t,i,who));if(a.includes(undefined))continue;
+        tries.push([`${addr}::${mod}::${f.name}`,a]);
+      }
     }
   }
-  for(const [f,a] of tries)for(const ep of ['/rpc/v3/view','/rpc/v1/view']){
-    try{const p=await viewCall(base,ep,f,a);GL=Object.assign(p,{at:Date.now(),src:f.split('::').pop()});GLok={ep,f,a};GLerr='';return true}
-    catch(e){if(errs.length<4)errs.push(e.message)}
+  tries.push([fn,[PIN.addr,GL_NAME]]); // last resort: the function typed in Settings
+  const seen=new Set();
+  for(const [f,a] of tries){
+    for(const ep of ['/rpc/v3/view','/rpc/v1/view']){
+      try{const p=await viewCall(base,ep,f,a);GL=Object.assign(p,{at:Date.now(),src:f.split('::').pop()});GLok={ep,f,a};GLerr='';return true}
+      catch(e){const k=f.split('::').pop();if(!seen.has(k)&&errs.length<5){seen.add(k);errs.push(e.message)}}
+    }
   }
-  GLerr=[...new Set(errs)].slice(0,3).join(' | ')+(GLfns?' | contract functions: '+GLfns:' | could not read contract ABI');return false;
+  GLerr=errs.join(' | ')+(GLfns?' | lootbox functions: '+GLfns:' | could not read contract ABI');return false;
 }
 function liveHtml(){
   if(!GL)return `<div class="gl"><span class="tag off">Auto-detect: connecting…</span><div class="msg err">${esc(GLerr||'Loading...')}</div></div>`;
