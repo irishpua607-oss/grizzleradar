@@ -55,7 +55,7 @@ window.fetch=async function(u,o){
 <div class="card pin" id="pin"></div>
 <input class="search hide" id="q" placeholder="Search collection, contract, or NFT..." aria-label="Search">
 <div class="tabs" role="tablist"><button class="on" data-t="radar">Radar</button><button data-t="trend">Trending</button><button data-t="new">New Mints</button><button data-t="col">Collections</button></div>
-<div id="v-radar"><div class="card hero"><h2>GRIZZLE <b>RADAR</b></h2><p>Scan the Supra NFT universe. Find trending collections, new mints, and hidden gems before they blow up.</p>
+<div id="v-radar"><div class="card hero"><h2>GRIZZLE <b>RADAR</b> <small style="font-size:11px;opacity:.6">v8</small></h2><p>Scan the Supra NFT universe. Find trending collections, new mints, and hidden gems before they blow up.</p>
 <div class="grid"><div class="stat"><span>Active NFT collections</span><b id="sCol">0</b></div><div class="stat"><span>New mints (scanned)</span><b id="sMint">0</b></div><div class="stat"><span>Unique wallets</span><b id="sWal">0</b></div><div class="stat"><span>Events (24h)</span><b id="s24">0</b></div></div></div>
 <div class="card"><div class="radar" id="radar"><div class="sweep"></div></div></div></div>
 <div class="card hide" id="v-trend"></div><div class="card hide" id="v-new"></div><div class="card hide" id="v-col"></div>
@@ -125,7 +125,7 @@ async function scan(){
   });
   render(fresh);
   if(errs.length){$('status').className='msg err';$('status').textContent='Some types failed: '+errs.slice(0,3).join('; ')+(errs.length>3?' ...':'')+'. Check the type names, or the browser may be blocking the request (CORS).'}
-  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'. [build v7: logos on radar]';
+  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'. [build v8: image debug]';
 }
 function groups(){
   const g=new Map();
@@ -400,6 +400,13 @@ function imgNext(im){
   if(i<L.length){im.dataset.i=i;im.src=L[i];return}
   metaFallback(k).then(src=>{if(src&&im.isConnected){im.dataset.m=1;IMGL.set(k,[src]);im.src=src}else if(!src){IMGBAD.add(k);im.remove()}});
 }
+function imgDebug(gs){
+  const rows=gs.slice(0,12).map(g=>{
+    const k=g.k,L=imgList(k,g.ev),st=IMGOK[k]?'OK':IMGBAD.has(k)?'FAILED':L.length?'trying':'NO URL';
+    const keys=Object.keys((g.ev&&g.ev.data)||{}).join(', ');
+    return `<div style="margin:6px 0;border-top:1px solid #1e3a2a;padding-top:6px"><b>${esc(labelOf(k,g.ev)||k)}</b> -> ${st}<br>fields: ${esc(keys)}<br>${L.slice(0,2).map(u=>esc(u.replace(CDN,'.../'))).join('<br>')}</div>`}).join('');
+  return `<details><summary style="color:var(--g);cursor:pointer;margin:10px 0">Image debug (tap)</summary><div class="msg" style="word-break:break-all">${rows}</div></details>`;
+}
 function imgTag(e,k){
   k=String(k);const L=IMGBAD.has(k)?[]:imgList(k,e);IMGL.set(k,L);
   return L.length?`<img src="${esc(L[0])}" data-k="${esc(k)}" data-i="0" referrerpolicy="no-referrer" alt="" onload="IMGOK[this.dataset.k]=this.src" onerror="imgNext(this)">`:'';
@@ -426,7 +433,7 @@ function render0(fresh){
   $('radar').innerHTML='<div class="sweep"></div>'+top.map((g,i)=>{const a=(i*137.5)*Math.PI/180,r=14+(1-g.n/mx)*28;
     return `<div class="dot" title="${esc(labelOf(g.k,g.ev)||g.k)} (${g.n} events)" style="left:${50+r*Math.cos(a)}%;top:${50+r*Math.sin(a)}%;background:hsl(${hue(g.k)},70%,60%)">${esc((labelOf(g.k,g.ev)||g.k).replace(/^0x/,'').slice(0,2).toUpperCase())}${imgTag(g.ev,g.k)}</div>`}).join('');
   const t=(h,r)=>r.length?`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.join('')}</table>`:'<div class="msg">Nothing here yet. The radar fills up as it scans.</div>';
-  $('v-col').innerHTML=note+t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${thumb(g.ev,g.k)}${nm(g.k,g.ev)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`));
+  $('v-col').innerHTML=note+t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${thumb(g.ev,g.k)}${nm(g.k,g.ev)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`))+imgDebug(gs);
   const W=[['1h',36e5],['24h',864e5],['7d',6048e5]];
   const rows=gs.map(g=>{const r={k:g.k,all:g.n,ev:g.ev};for(const[n,ms]of W)r[n]=all.filter(e=>(e.col||e.tok||'(unknown)')===g.k&&e.ts>now-ms).length;return r})
     .sort((a,b)=>hasTs?(b['24h']-a['24h']||b['1h']-a['1h']||b.all-a.all):b.all-a.all);
