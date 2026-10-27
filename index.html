@@ -80,8 +80,8 @@ const sh=s=>/^0x[0-9a-fA-F]{12,}$/.test(String(s))?`<span title="${esc(s)}">${es
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function pick(o,names){
   if(!o||typeof o!=='object')return '';
-  for(const k of Object.keys(o)){
-    if(names.some(n=>k.toLowerCase().includes(n))){const v=o[k];if(typeof v==='string')return v;if(v&&typeof v==='object'){const i=v.inner||v.address||v.name;if(typeof i==='string')return i}}
+  for(const n of names)for(const k of Object.keys(o)){
+    if(k.toLowerCase().includes(n)){const v=o[k];if(typeof v==='string')return v;if(v&&typeof v==='object'){const i=v.inner||v.address||v.name;if(typeof i==='string')return i}}
   }
   for(const k of Object.keys(o)){if(o[k]&&typeof o[k]==='object'&&!Array.isArray(o[k])){const r=pick(o[k],names);if(r)return r}}
   return '';
@@ -91,7 +91,7 @@ function norm(raw,type){
   const ts=raw.timestamp||raw.block_timestamp||ev.timestamp||'';
   return {type:ev.type||type,data:d,height:raw.block_height||raw.height||'',tx:raw.transaction_hash||raw.tx_hash||raw.hash||'',
     ts:ts?(ts>1e14?ts/1000:ts>1e11?ts:ts*1000):0,
-    col:pick(d,['collection']),tok:pick(d,['token','nft']),who:pick(d,['creator','owner','to','minter','buyer'])};
+    col:pick(d,['collection']),tok:pick(d,['token','nft']),who:(d&&typeof d.to==='string'?d.to:'')||pick(d,['buyer','minter','recipient','owner','creator'])};
 }
 // one key per event, so the same event found by the block reader and the type scan is counted once
 function addEv(e){
@@ -201,12 +201,18 @@ async function auto(deep){
 }
 
 // ---- Grizzle live stats (minted / supply / price) straight from the Supra node ----
-let GL=null,GLerr='';
+let GL=null,GLerr='',GLsw=false;try{GLsw=localStorage.getItem('glsw')==='1'}catch(e){}
+function GLswap(){GLsw=!GLsw;try{localStorage.setItem('glsw',GLsw?'1':'0')}catch(e){}if(GL&&GL.a!==undefined)GL.minted=GLsw?GL.b:GL.a;render0(0)}
 const GL_NAME='GRIZZLE JUNKYARD DEFENDERS';
 const hexName=s=>'0x'+[...new TextEncoder().encode(s)].map(b=>b.toString(16).padStart(2,'0')).join('');
 function findKey(o,re){let r;(function f(x){if(r!==undefined||!x||typeof x!=='object')return;for(const k in x){if(re.test(k)&&x[k]!==null&&typeof x[k]!=='object'){r=x[k];return}}for(const k in x)f(x[k])})(o);return r}
 function parseLive(j){
   const root=Array.isArray(j.result)?j.result:(j.result||j);
+  // Crystara get_lootbox_info_v5 returns a positional array: [creator,name,desc,uri,_,_,active,_,total,A,B,total,price(octas),...]
+  if(Array.isArray(root)&&root.length>13&&typeof root[1]==='string'&&root[1].toUpperCase()===GL_NAME){
+    const n=x=>Number(x),a=n(root[9]),b=n(root[10]),mx=n(root[8])||PIN.supply;
+    if(Number.isFinite(a)&&Number.isFinite(b))return {a,b,max:mx,minted:GLsw?b:a,price:n(root[12])/1e8,active:root[6]===true};
+  }
   const unj=x=>{if(typeof x==='string'){try{const p=JSON.parse(x);if(p&&typeof p==='object')return unj(p)}catch(e){}return x}if(Array.isArray(x))return x.map(unj);if(x&&typeof x==='object'){const r={};for(const k in x)r[k]=unj(x[k]);return r}return x};
   let o=unj(root);
   // view results may come as an array of values or a JSON string
@@ -312,7 +318,7 @@ async function liveGrizzle(){
 }
 function liveHtml(){
   if(!GL)return `<div class="gl"><span class="tag off">Auto-detect: connecting…</span><div class="msg err">${esc(GLerr||'Loading...')}</div></div>`;
-  return `<div class="gl"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag on">Live</span>${GL.active===undefined?'':`<span class="tag ${GL.active?'on':'off'}">${GL.active?'Mint open':'Mint closed'}</span>`}${(GL.minted!==undefined&&GL.minted>=GL.max)?'<span class="tag off">SOLD OUT</span>':''}${GL.price===undefined?'':`<span class="tag on">Price: ${GL.price.toLocaleString(undefined,{maximumFractionDigits:2})} SUPRA</span>`}</div></div>`;
+  return `<div class="gl"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag on">Live</span>${GL.active===undefined?'':`<span class="tag ${GL.active?'on':'off'}">${GL.active?'Mint open':'Mint closed'}</span>`}${(GL.minted!==undefined&&GL.minted>=GL.max)?'<span class="tag off">SOLD OUT</span>':''}${GL.a!==undefined?'<button onclick="GLswap()" style="background:none;border:1px solid var(--g);color:var(--g);border-radius:8px;padding:2px 8px;font-size:12px">⇄ swap minted/left</button>':''}${GL.price===undefined?'':`<span class="tag on">Price: ${GL.price.toLocaleString(undefined,{maximumFractionDigits:2})} SUPRA</span>`}</div></div>`;
 }
 // ---- names: show NFT/collection names, never raw wallet addresses ----
 const NAMES=new Map(),isAddr=x=>/^0x[0-9a-fA-F]{12,}$/.test(String(x||''));
