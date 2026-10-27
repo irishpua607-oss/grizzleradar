@@ -125,7 +125,7 @@ async function scan(){
   });
   render(fresh);
   if(errs.length){$('status').className='msg err';$('status').textContent='Some types failed: '+errs.slice(0,3).join('; ')+(errs.length>3?' ...':'')+'. Check the type names, or the browser may be blocking the request (CORS).'}
-  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'.';
+  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'. [build v6: grizzle-positional]';
 }
 function groups(){
   const g=new Map();
