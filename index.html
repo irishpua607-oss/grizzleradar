@@ -25,7 +25,7 @@ body{margin:0;background:radial-gradient(900px 500px at 50% -100px,#0f3a22 0,var
 .radar:before,.radar:after{content:"";position:absolute;background:#13402a}.radar:before{left:50%;top:0;bottom:0;width:1px}.radar:after{top:50%;left:0;right:0;height:1px}
 .sweep{position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(45,255,143,.28),transparent 25%);animation:sw 5s linear infinite}
 @keyframes sw{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.sweep{animation:none}}
-.dot{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:12px;border:2px solid var(--g);display:grid;place-items:center;font-weight:800;font-size:14px;color:#04120a;cursor:pointer}
+.dot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.dot{overflow:hidden;position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:12px;border:2px solid var(--g);display:grid;place-items:center;font-weight:800;font-size:14px;color:#04120a;cursor:pointer}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);word-break:break-all}th{color:var(--mute)}
 .msg{color:var(--mute);font-size:13px;padding:6px 0}.err{color:#ff8a70}
@@ -125,7 +125,7 @@ async function scan(){
   });
   render(fresh);
   if(errs.length){$('status').className='msg err';$('status').textContent='Some types failed: '+errs.slice(0,3).join('; ')+(errs.length>3?' ...':'')+'. Check the type names, or the browser may be blocking the request (CORS).'}
-  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'. [build v6: grizzle-positional]';
+  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'. [build v7: logos on radar]';
 }
 function groups(){
   const g=new Map();
@@ -380,10 +380,33 @@ function imgList(k,e){
   const top=[...score.values()].sort((a,b)=>b.s-a.s).slice(0,5).map(o=>`${CDN}${o.raw}-${encodeURIComponent(name)}/banner.jpg`);
   return [...top,...[...urls].slice(0,2)];
 }
-function imgNext(im){const k=im.dataset.k,L=IMGL.get(k)||[],i=Number(im.dataset.i)+1;if(i<L.length){im.dataset.i=i;im.src=L[i]}else{IMGBAD.add(k);im.remove()}}
+const IMGMETA=new Map();
+// last resort: the collection folder has a metadata.json that names the real image (one lookup per collection, shared across re-renders)
+function metaFallback(k){
+  if(IMGMETA.has(k))return IMGMETA.get(k);
+  const bases=(IMGL.get(k)||[]).filter(x=>/banner\.jpg$/.test(x));
+  const pr=(async()=>{
+    for(const u of bases){
+      try{const r=await fetch(u.replace(/banner\.jpg$/,'metadata.json'));if(!r.ok)continue;const j=await r.json();
+        const src=String(j.image||j.banner||j.logo||j.image_url||'').replace(/^ipfs:\/\//,'https://ipfs.io/ipfs/');if(src)return src}catch(e){}
+    }
+    return '';
+  })();
+  IMGMETA.set(k,pr);return pr;
+}
+function imgNext(im){
+  const k=im.dataset.k,L=IMGL.get(k)||[],i=Number(im.dataset.i)+1;
+  if(im.dataset.m){IMGBAD.add(k);im.remove();return}
+  if(i<L.length){im.dataset.i=i;im.src=L[i];return}
+  metaFallback(k).then(src=>{if(src&&im.isConnected){im.dataset.m=1;IMGL.set(k,[src]);im.src=src}else if(!src){IMGBAD.add(k);im.remove()}});
+}
+function imgTag(e,k){
+  k=String(k);const L=IMGBAD.has(k)?[]:imgList(k,e);IMGL.set(k,L);
+  return L.length?`<img src="${esc(L[0])}" data-k="${esc(k)}" data-i="0" referrerpolicy="no-referrer" alt="" onload="IMGOK[this.dataset.k]=this.src" onerror="imgNext(this)">`:'';
+}
 function thumb(e,k){
-  k=String(k);const lab=labelOf(k,e)||k,L=IMGBAD.has(k)?[]:imgList(k,e);IMGL.set(k,L);
-  return `<span class="th" style="background:hsl(${hue(k)},70%,60%)">${esc(lab.replace(/^0x/,'').slice(0,2).toUpperCase())}${L.length?`<img src="${esc(L[0])}" data-k="${esc(k)}" data-i="0" loading="lazy" referrerpolicy="no-referrer" alt="" onload="IMGOK[this.dataset.k]=this.src" onerror="imgNext(this)">`:''}</span>`;
+  k=String(k);const lab=labelOf(k,e)||k;
+  return `<span class="th" style="background:hsl(${hue(k)},70%,60%)">${esc(lab.replace(/^0x/,'').slice(0,2).toUpperCase())}${imgTag(e,k)}</span>`;
 }
 function hue(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return h}
 let showUn=false;
@@ -401,7 +424,7 @@ function render0(fresh){
   const top=[...gs].sort((a,b)=>b.n-a.n).slice(0,16),mx=Math.max(1,...top.map(g=>g.n));
   // spread dots with the golden angle so they do not pile on top of each other
   $('radar').innerHTML='<div class="sweep"></div>'+top.map((g,i)=>{const a=(i*137.5)*Math.PI/180,r=14+(1-g.n/mx)*28;
-    return `<div class="dot" title="${esc(g.k)} (${g.n} events)" style="left:${50+r*Math.cos(a)}%;top:${50+r*Math.sin(a)}%;background:hsl(${hue(g.k)},70%,60%)">${esc(g.k.replace(/^0x/,'').slice(0,2).toUpperCase())}</div>`}).join('');
+    return `<div class="dot" title="${esc(labelOf(g.k,g.ev)||g.k)} (${g.n} events)" style="left:${50+r*Math.cos(a)}%;top:${50+r*Math.sin(a)}%;background:hsl(${hue(g.k)},70%,60%)">${esc((labelOf(g.k,g.ev)||g.k).replace(/^0x/,'').slice(0,2).toUpperCase())}${imgTag(g.ev,g.k)}</div>`}).join('');
   const t=(h,r)=>r.length?`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.join('')}</table>`:'<div class="msg">Nothing here yet. The radar fills up as it scans.</div>';
   $('v-col').innerHTML=note+t(['Collection / token','Events','Wallets','Latest'],gs.sort((a,b)=>b.last-a.last).map(g=>`<tr><td>${thumb(g.ev,g.k)}${nm(g.k,g.ev)}${raw(g.ev)}</td><td>${g.n}</td><td>${g.who.size}</td><td>${g.last?new Date(g.last).toLocaleString():'-'}</td></tr>`));
   const W=[['1h',36e5],['24h',864e5],['7d',6048e5]];
