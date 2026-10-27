@@ -55,7 +55,7 @@ window.fetch=async function(u,o){
 <div class="card pin" id="pin"></div>
 <input class="search hide" id="q" placeholder="Search collection, contract, or NFT..." aria-label="Search">
 <div class="tabs" role="tablist"><button class="on" data-t="radar">Radar</button><button data-t="trend">Trending</button><button data-t="new">New Mints</button><button data-t="col">Collections</button></div>
-<div id="v-radar"><div class="card hero"><h2>GRIZZLE <b>RADAR</b> <small style="font-size:11px;opacity:.6">v8</small></h2><p>Scan the Supra NFT universe. Find trending collections, new mints, and hidden gems before they blow up.</p>
+<div id="v-radar"><div class="card hero"><h2>GRIZZLE <b>RADAR</b> <small style="font-size:11px;opacity:.6">v9</small></h2><p>Scan the Supra NFT universe. Find trending collections, new mints, and hidden gems before they blow up.</p>
 <div class="grid"><div class="stat"><span>Active NFT collections</span><b id="sCol">0</b></div><div class="stat"><span>New mints (scanned)</span><b id="sMint">0</b></div><div class="stat"><span>Unique wallets</span><b id="sWal">0</b></div><div class="stat"><span>Events (24h)</span><b id="s24">0</b></div></div></div>
 <div class="card"><div class="radar" id="radar"><div class="sweep"></div></div></div></div>
 <div class="card hide" id="v-trend"></div><div class="card hide" id="v-new"></div><div class="card hide" id="v-col"></div>
@@ -86,12 +86,18 @@ function pick(o,names){
   for(const k of Object.keys(o)){if(o[k]&&typeof o[k]==='object'&&!Array.isArray(o[k])){const r=pick(o[k],names);if(r)return r}}
   return '';
 }
+function anyAddr(x,excl,dp){
+  dp=dp||0;if(x==null||dp>5)return '';
+  if(typeof x==='string')return(/^0x[0-9a-fA-F]{40,}$/.test(x)&&!(excl||[]).includes(x))?x:'';
+  if(typeof x==='object')for(const k in x){const r=anyAddr(x[k],excl,dp+1);if(r)return r}
+  return '';
+}
 function norm(raw,type){
   const ev=raw.event||raw; const d=ev.data||ev;
   const ts=raw.timestamp||raw.block_timestamp||ev.timestamp||'';
   return {type:ev.type||type,data:d,height:raw.block_height||raw.height||'',tx:raw.transaction_hash||raw.tx_hash||raw.hash||'',
     ts:ts?(ts>1e14?ts/1000:ts>1e11?ts:ts*1000):0,
-    col:pick(d,['collection']),tok:pick(d,['token','nft']),who:(d&&typeof d.to==='string'?d.to:'')||pick(d,['buyer','minter','recipient','owner','creator'])};
+    col:pick(d,['collection']),tok:pick(d,['token','nft']),who:(d&&typeof d.to==='string'?d.to:'')||pick(d,['buyer','minter','recipient','owner','sender','user','account','creator'])||anyAddr(d,[pick(d,['collection']),pick(d,['token','nft'])])};
 }
 // one key per event, so the same event found by the block reader and the type scan is counted once
 function addEv(e){
@@ -125,7 +131,7 @@ async function scan(){
   });
   render(fresh);
   if(errs.length){$('status').className='msg err';$('status').textContent='Some types failed: '+errs.slice(0,3).join('; ')+(errs.length>3?' ...':'')+'. Check the type names, or the browser may be blocking the request (CORS).'}
-  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'. [build v8: image debug]';
+  else $('status').textContent='Done at '+new Date().toLocaleTimeString()+'. [build v9: wallets+debug]';
 }
 function groups(){
   const g=new Map();
@@ -404,7 +410,7 @@ function imgDebug(gs){
   const rows=gs.slice(0,12).map(g=>{
     const k=g.k,L=imgList(k,g.ev),st=IMGOK[k]?'OK':IMGBAD.has(k)?'FAILED':L.length?'trying':'NO URL';
     const keys=Object.keys((g.ev&&g.ev.data)||{}).join(', ');
-    return `<div style="margin:6px 0;border-top:1px solid #1e3a2a;padding-top:6px"><b>${esc(labelOf(k,g.ev)||k)}</b> -> ${st}<br>fields: ${esc(keys)}<br>${L.slice(0,2).map(u=>esc(u.replace(CDN,'.../'))).join('<br>')}</div>`}).join('');
+    return `<div style="margin:6px 0;border-top:1px solid #1e3a2a;padding-top:6px"><b>${esc(labelOf(k,g.ev)||k)}</b> -> ${st}<br>fields: ${esc(keys)}<br>data: ${esc(JSON.stringify((g.ev&&g.ev.data)||{}).slice(0,380))}<br>${L.slice(0,2).map(u=>esc(u.replace(CDN,'.../'))).join('<br>')}</div>`}).join('');
   return `<details><summary style="color:var(--g);cursor:pointer;margin:10px 0">Image debug (tap)</summary><div class="msg" style="word-break:break-all">${rows}</div></details>`;
 }
 function imgTag(e,k){
